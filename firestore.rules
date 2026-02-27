@@ -6,7 +6,7 @@ service cloud.firestore {
     function isAdmin() {
       return request.auth != null
         && request.auth.uid in [
-          "PASTE_ADMIN_UID_HERE"
+          "0Dey4gLQC8TO5AYLrwR6L7QOh3L2"
         ];
     }
 
@@ -18,4 +18,5 @@ service cloud.firestore {
     }
   }
 }
+
 
