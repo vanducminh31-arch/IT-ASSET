@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Import data • IT Asset</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#0d1117;--surface:#161b22;--surface2:#21262d;--border:#30363d;
+      --in:#3fb950;--out:#f85149;--accent:#58a6ff;--warn:#e3b341;
+      --text:#e6edf3;--muted:#8b949e;--dim:#484f58;
+    }
+    body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;padding:24px}
+    .wrap{max-width:900px;margin:0 auto}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px}
+    .title{font-size:18px;font-weight:700;margin-bottom:6px}
+    .sub{color:var(--muted);font-size:13px;line-height:1.45;margin-bottom:14px}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .btn{border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text);padding:10px 14px;cursor:pointer;font-weight:600}
+    .btn:hover{border-color:var(--accent)}
+    .btn.primary{background:var(--accent);border-color:var(--accent);color:#000}
+    .btn.primary:hover{background:#79baff}
+    input[type="file"]{border:1px dashed var(--border);border-radius:8px;padding:14px;width:min(520px,100%);background:var(--surface2);color:var(--muted)}
+    .mono{font-family:'IBM Plex Mono',monospace}
+    .log{margin-top:14px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;min-height:160px;white-space:pre-wrap;line-height:1.35;color:var(--muted)}
+    .pill{display:inline-block;font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid var(--border);color:var(--muted)}
+    .ok{border-color:rgba(63,185,80,.35);color:var(--in)}
+    .bad{border-color:rgba(248,81,73,.35);color:var(--out)}
+    a{color:var(--accent);text-decoration:none}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      <div>
+        <div class="title">Import dữ liệu lên Firebase Firestore</div>
+        <div class="sub">
+          Trang này dùng để seed dữ liệu (transactions/stock/minipc/stores/offices/warehouses) từ file JSON.
+          Sau khi import xong, quay về <a href="./index.html">app</a>.
+        </div>
+      </div>
+      <div>
+        <span class="pill" id="authState">Auth: checking...</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="margin-bottom:10px">
+        <input type="file" id="fileInput" accept=".json,application/json" />
+        <button class="btn" id="btnSignIn">Đăng nhập</button>
+        <button class="btn" id="btnSignOut" style="display:none">Đăng xuất</button>
+      </div>
+      <div class="row" style="margin-bottom:10px">
+        <button class="btn primary" id="btnImport" disabled>Import</button>
+        <button class="btn" id="btnDryRun" disabled>Dry-run (kiểm tra)</button>
+        <button class="btn" id="btnClearLog">Clear log</button>
+      </div>
+      <div class="sub" style="margin:0">
+        File JSON cần có format giống như biến <span class="mono">RAW_DATA</span> bạn đang có: <span class="mono">{ "transactions": [...], "stock": [...], "minipc": [...], "stores": [...] }</span>.
+        Offices/warehouses là optional.
+      </div>
+      <div class="log mono" id="log"></div>
+    </div>
+  </div>
+
+  <script type="module" src="./js/import.js"></script>
+</body>
+</html>
+

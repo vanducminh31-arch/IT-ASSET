@@ -1,0 +1,21 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Option A (recommended): Only admin UIDs can write.
+    // Replace UID list with your Firebase Auth user UID(s).
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.uid in [
+          "PASTE_ADMIN_UID_HERE"
+        ];
+    }
+
+    // If you want "any signed-in user can write", replace isAdmin() with (request.auth != null).
+
+    match /{document=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}
+
