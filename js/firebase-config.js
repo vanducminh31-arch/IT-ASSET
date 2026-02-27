@@ -4,7 +4,7 @@
 // js/firebase-config.js
 
 const firebaseConfig = {
-  apiKey: "AIzaSy...",
+  apiKey: "AIzaSyAPq1O8wMhmDJyRCZL3ycaPBrddpe3SB9I",
   authDomain: "it-asset-641a6.firebaseapp.com",
   projectId: "it-asset-641a6",
   storageBucket: "it-asset-641a6.firebasestorage.app",
@@ -14,4 +14,5 @@ const firebaseConfig = {
 };
 
 export { firebaseConfig };
+
 
