@@ -715,10 +715,17 @@ window.renderStoreDetail = renderStoreDetail;
 function renderOffices() {
   const cards = OFFICES.map((o) => {
     const code = safeTrim(o.code || o.Code || o["Office code"]);
+    const id = String(o.id);
     const deviceCount = TX.filter((t) => t.TxType === "out" && safeTrim(t.Assigned).includes(code)).length;
     return `
       <div class="store-card store-card-clickable" onclick="renderOfficeDetail('${code.replace(/'/g, "\\'")}')">
-        <div class="sc-code">${code}</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px">
+          <div class="sc-code">${code}</div>
+          <div style="display:flex;gap:4px">
+            <button onclick="event.stopPropagation();openOfficeModal('${id.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}')" style="background:transparent;border:none;color:var(--dim);cursor:pointer;font-size:13px;padding:2px 4px;border-radius:3px;transition:color .15s" title="Chỉnh sửa">✎</button>
+            <button onclick="event.stopPropagation();deleteOffice('${id.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}')" style="background:transparent;border:none;color:var(--dim);cursor:pointer;font-size:13px;padding:2px 4px;border-radius:3px;transition:color .15s" title="Xoá">✕</button>
+          </div>
+        </div>
         <div class="sc-name">${safeTrim(o.name || o.Name || o["Office name"])}</div>
         <div style="font-size:12px;color:var(--dim);margin-top:4px">📍 ${safeTrim(o.location || o.Location || "")}</div>
         <div style="font-size:12px;color:var(--dim);margin-top:2px">👤 ${safeTrim(o.incharge || o.Incharge || "")}</div>
@@ -773,36 +780,113 @@ function renderOfficeDetail(code) {
   `;
 }
 
-async function openOfficeModal() {
-  if (!requireAuth("thêm văn phòng")) return;
-  const code = prompt("Mã văn phòng (vd: OFF-HCM):");
-  if (!code) return;
-  const name = prompt("Tên văn phòng:") || "";
-  if (!name.trim()) return;
-  const location = prompt("Địa chỉ:") || "";
-  const incharge = prompt("Người phụ trách:") || "";
+let editingOfficeId = null;
+
+function openOfficeModal(officeId) {
+  if (!requireAuth("thêm/chỉnh sửa văn phòng")) return;
+  editingOfficeId = officeId ?? null;
+  const isEdit = editingOfficeId != null;
+
+  $("officeModalTitle").textContent = isEdit ? "✎ Chỉnh sửa văn phòng" : "＋ Thêm văn phòng";
+  $("btnOfficeSubmit").textContent = isEdit ? "Cập nhật" : "Lưu văn phòng";
+
+  if (isEdit) {
+    const o = OFFICES.find((x) => String(x.id) === String(editingOfficeId));
+    if (!o) return;
+    $("ofCode").value = safeTrim(o.code || o.Code || o["Office code"]);
+    $("ofCode").disabled = true;
+    $("ofName").value = safeTrim(o.name || o.Name || o["Office name"]);
+    $("ofLocation").value = safeTrim(o.location || o.Location || "");
+    $("ofIncharge").value = safeTrim(o.incharge || o.Incharge || "");
+  } else {
+    $("ofCode").value = "";
+    $("ofCode").disabled = false;
+    $("ofName").value = "";
+    $("ofLocation").value = "";
+    $("ofIncharge").value = "";
+  }
+
+  $("officeModal").classList.add("open");
+  setTimeout(() => (isEdit ? $("ofName") : $("ofCode")).focus(), 150);
+}
+
+function closeOfficeModal() {
+  $("officeModal").classList.remove("open");
+  editingOfficeId = null;
+}
+
+async function submitOffice() {
+  if (!requireAuth("lưu văn phòng")) return;
+  const code = safeTrim($("ofCode").value);
+  const name = safeTrim($("ofName").value);
+  if (!code || !name) {
+    showToast("Vui lòng điền Mã và Tên văn phòng.", "error");
+    return;
+  }
+  const location = safeTrim($("ofLocation").value);
+  const incharge = safeTrim($("ofIncharge").value);
 
   try {
-    const batch = writeBatch(db);
-    const ref = doc(collection(db, "offices"));
-    batch.set(ref, { code: code.trim(), name: name.trim(), location, incharge, createdAt: serverTimestamp() });
-    await batch.commit();
-    OFFICES.push({ id: ref.id, code: code.trim(), name: name.trim(), location, incharge });
-    $("cnt-offices").textContent = OFFICES.length;
-    showToast(`✓ Đã thêm văn phòng: ${name.trim()}`, "success");
+    $("btnOfficeSubmit").disabled = true;
+    if (editingOfficeId != null) {
+      const o = OFFICES.find((x) => String(x.id) === String(editingOfficeId));
+      if (!o) throw new Error("Không tìm thấy văn phòng để cập nhật.");
+      const batch = writeBatch(db);
+      batch.update(doc(db, "offices", String(editingOfficeId)), { name, location, incharge, updatedAt: serverTimestamp() });
+      await batch.commit();
+      o.name = name;
+      o.location = location;
+      o.incharge = incharge;
+      showToast(`✓ Đã cập nhật: ${name}`, "success");
+    } else {
+      const batch = writeBatch(db);
+      const ref = doc(collection(db, "offices"));
+      batch.set(ref, { code, name, location, incharge, createdAt: serverTimestamp() });
+      await batch.commit();
+      OFFICES.push({ id: ref.id, code, name, location, incharge });
+      $("cnt-offices").textContent = OFFICES.length;
+      showToast(`✓ Đã thêm văn phòng: ${name}`, "success");
+    }
+    closeOfficeModal();
     render();
   } catch (e) {
     showToast(`Lỗi: ${e?.message || e}`, "error");
+  } finally {
+    $("btnOfficeSubmit").disabled = false;
+  }
+}
+
+async function deleteOffice(id) {
+  if (!requireAuth("xóa văn phòng")) return;
+  const o = OFFICES.find((x) => String(x.id) === String(id));
+  if (!o) return;
+  const name = safeTrim(o.name || o.Name || o["Office name"]);
+  if (!confirm(`Xoá văn phòng "${name}"?`)) return;
+  try {
+    await deleteDoc(doc(db, "offices", String(id)));
+    OFFICES = OFFICES.filter((x) => String(x.id) !== String(id));
+    $("cnt-offices").textContent = OFFICES.length;
+    showToast(`Đã xoá: ${name}`, "success");
+    render();
+  } catch (e) {
+    showToast(`Lỗi xóa: ${e?.message || e}`, "error");
   }
 }
 
 function renderWarehouses() {
   const cards = WAREHOUSES.map((w) => {
     const code = safeTrim(w.code || w.Code || w["Warehouse code"]);
+    const id = String(w.id);
     const deviceCount = TX.filter((t) => t.TxType === "out" && safeTrim(t.Assigned).includes(code)).length;
     return `
       <div class="store-card store-card-clickable" onclick="renderWarehouseDetail('${code.replace(/'/g, "\\'")}')">
-        <div class="sc-code">${code}</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px">
+          <div class="sc-code">${code}</div>
+          <div style="display:flex;gap:4px">
+            <button onclick="event.stopPropagation();openWarehouseModal('${id.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}')" style="background:transparent;border:none;color:var(--dim);cursor:pointer;font-size:13px;padding:2px 4px;border-radius:3px;transition:color .15s" title="Chỉnh sửa">✎</button>
+            <button onclick="event.stopPropagation();deleteWarehouse('${id.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}')" style="background:transparent;border:none;color:var(--dim);cursor:pointer;font-size:13px;padding:2px 4px;border-radius:3px;transition:color .15s" title="Xoá">✕</button>
+          </div>
+        </div>
         <div class="sc-name">${safeTrim(w.name || w.Name || w["Warehouse name"])}</div>
         <div style="font-size:12px;color:var(--dim);margin-top:4px">📍 ${safeTrim(w.location || w.Location || "")}</div>
         <div style="font-size:12px;color:var(--dim);margin-top:2px">👤 ${safeTrim(w.incharge || w.Incharge || "")}</div>
@@ -857,33 +941,109 @@ function renderWarehouseDetail(code) {
   `;
 }
 
-async function openWarehouseModal() {
-  if (!requireAuth("thêm kho")) return;
-  const code = prompt("Mã kho (vd: WH-SGN):");
-  if (!code) return;
-  const name = prompt("Tên kho:") || "";
-  if (!name.trim()) return;
-  const location = prompt("Địa chỉ:") || "";
-  const incharge = prompt("Người phụ trách:") || "";
+let editingWarehouseId = null;
+
+function openWarehouseModal(warehouseId) {
+  if (!requireAuth("thêm/chỉnh sửa kho")) return;
+  editingWarehouseId = warehouseId ?? null;
+  const isEdit = editingWarehouseId != null;
+
+  $("warehouseModalTitle").textContent = isEdit ? "✎ Chỉnh sửa kho" : "＋ Thêm kho";
+  $("btnWarehouseSubmit").textContent = isEdit ? "Cập nhật" : "Lưu kho";
+
+  if (isEdit) {
+    const w = WAREHOUSES.find((x) => String(x.id) === String(editingWarehouseId));
+    if (!w) return;
+    $("wfCode").value = safeTrim(w.code || w.Code || w["Warehouse code"]);
+    $("wfCode").disabled = true;
+    $("wfName").value = safeTrim(w.name || w.Name || w["Warehouse name"]);
+    $("wfLocation").value = safeTrim(w.location || w.Location || "");
+    $("wfIncharge").value = safeTrim(w.incharge || w.Incharge || "");
+  } else {
+    $("wfCode").value = "";
+    $("wfCode").disabled = false;
+    $("wfName").value = "";
+    $("wfLocation").value = "";
+    $("wfIncharge").value = "";
+  }
+
+  $("warehouseModal").classList.add("open");
+  setTimeout(() => (isEdit ? $("wfName") : $("wfCode")).focus(), 150);
+}
+
+function closeWarehouseModal() {
+  $("warehouseModal").classList.remove("open");
+  editingWarehouseId = null;
+}
+
+async function submitWarehouse() {
+  if (!requireAuth("lưu kho")) return;
+  const code = safeTrim($("wfCode").value);
+  const name = safeTrim($("wfName").value);
+  if (!code || !name) {
+    showToast("Vui lòng điền Mã và Tên kho.", "error");
+    return;
+  }
+  const location = safeTrim($("wfLocation").value);
+  const incharge = safeTrim($("wfIncharge").value);
 
   try {
-    const batch = writeBatch(db);
-    const ref = doc(collection(db, "warehouses"));
-    batch.set(ref, { code: code.trim(), name: name.trim(), location, incharge, createdAt: serverTimestamp() });
-    await batch.commit();
-    WAREHOUSES.push({ id: ref.id, code: code.trim(), name: name.trim(), location, incharge });
-    $("cnt-warehouses").textContent = WAREHOUSES.length;
-    showToast(`✓ Đã thêm kho: ${name.trim()}`, "success");
+    $("btnWarehouseSubmit").disabled = true;
+    if (editingWarehouseId != null) {
+      const w = WAREHOUSES.find((x) => String(x.id) === String(editingWarehouseId));
+      if (!w) throw new Error("Không tìm thấy kho để cập nhật.");
+      const batch = writeBatch(db);
+      batch.update(doc(db, "warehouses", String(editingWarehouseId)), { name, location, incharge, updatedAt: serverTimestamp() });
+      await batch.commit();
+      w.name = name;
+      w.location = location;
+      w.incharge = incharge;
+      showToast(`✓ Đã cập nhật: ${name}`, "success");
+    } else {
+      const batch = writeBatch(db);
+      const ref = doc(collection(db, "warehouses"));
+      batch.set(ref, { code, name, location, incharge, createdAt: serverTimestamp() });
+      await batch.commit();
+      WAREHOUSES.push({ id: ref.id, code, name, location, incharge });
+      $("cnt-warehouses").textContent = WAREHOUSES.length;
+      showToast(`✓ Đã thêm kho: ${name}`, "success");
+    }
+    closeWarehouseModal();
     render();
   } catch (e) {
     showToast(`Lỗi: ${e?.message || e}`, "error");
+  } finally {
+    $("btnWarehouseSubmit").disabled = false;
+  }
+}
+
+async function deleteWarehouse(id) {
+  if (!requireAuth("xóa kho")) return;
+  const w = WAREHOUSES.find((x) => String(x.id) === String(id));
+  if (!w) return;
+  const name = safeTrim(w.name || w.Name || w["Warehouse name"]);
+  if (!confirm(`Xoá kho "${name}"?`)) return;
+  try {
+    await deleteDoc(doc(db, "warehouses", String(id)));
+    WAREHOUSES = WAREHOUSES.filter((x) => String(x.id) !== String(id));
+    $("cnt-warehouses").textContent = WAREHOUSES.length;
+    showToast(`Đã xoá: ${name}`, "success");
+    render();
+  } catch (e) {
+    showToast(`Lỗi xóa: ${e?.message || e}`, "error");
   }
 }
 
 window.renderOfficeDetail = renderOfficeDetail;
 window.openOfficeModal = openOfficeModal;
+window.closeOfficeModal = closeOfficeModal;
+window.submitOffice = submitOffice;
+window.deleteOffice = deleteOffice;
 window.renderWarehouseDetail = renderWarehouseDetail;
 window.openWarehouseModal = openWarehouseModal;
+window.closeWarehouseModal = closeWarehouseModal;
+window.submitWarehouse = submitWarehouse;
+window.deleteWarehouse = deleteWarehouse;
 
 // ── AUTOCOMPLETE SOURCES ──────────────────────────────────
 let AC_ITEMS = [];
@@ -1344,6 +1504,8 @@ function wireEvents() {
     if (e.key === "Escape") {
       closeModal();
       closeStockModal();
+      closeWarehouseModal();
+      closeOfficeModal();
       closeAuthModal();
     }
     if (e.key.toLowerCase() === "n" && !["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName)) {
@@ -1374,6 +1536,22 @@ function wireEvents() {
   $("btnStockSubmit").addEventListener("click", submitStock);
   $("stockModal").addEventListener("click", (e) => {
     if (e.target === $("stockModal")) closeStockModal();
+  });
+
+  // Warehouse modal buttons
+  $("btnCloseWarehouse").addEventListener("click", closeWarehouseModal);
+  $("btnCancelWarehouse").addEventListener("click", closeWarehouseModal);
+  $("btnWarehouseSubmit").addEventListener("click", submitWarehouse);
+  $("warehouseModal").addEventListener("click", (e) => {
+    if (e.target === $("warehouseModal")) closeWarehouseModal();
+  });
+
+  // Office modal buttons
+  $("btnCloseOffice").addEventListener("click", closeOfficeModal);
+  $("btnCancelOffice").addEventListener("click", closeOfficeModal);
+  $("btnOfficeSubmit").addEventListener("click", submitOffice);
+  $("officeModal").addEventListener("click", (e) => {
+    if (e.target === $("officeModal")) closeOfficeModal();
   });
 
   // Auth modal buttons
