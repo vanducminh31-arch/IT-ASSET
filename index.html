@@ -423,6 +423,78 @@
     </div>
   </div>
 
+  <!-- MODAL: Add/Edit Warehouse -->
+  <div class="modal-overlay" id="warehouseModal">
+    <div class="modal" style="width:480px">
+      <div class="modal-header">
+        <div class="modal-title" id="warehouseModalTitle">＋ Thêm kho</div>
+        <button class="modal-close" id="btnCloseWarehouse">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="field-group">
+            <div class="field-label">Mã kho <span class="req">*</span></div>
+            <input type="text" class="field-input" id="wfCode" placeholder="VD: WH-SGN">
+          </div>
+          <div class="field-group">
+            <div class="field-label">Tên kho <span class="req">*</span></div>
+            <input type="text" class="field-input" id="wfName" placeholder="VD: Kho Sài Gòn">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field-group">
+            <div class="field-label">Địa chỉ</div>
+            <input type="text" class="field-input" id="wfLocation" placeholder="VD: 123 Lê Lợi, Q.1">
+          </div>
+          <div class="field-group">
+            <div class="field-label">Người phụ trách</div>
+            <input type="text" class="field-input" id="wfIncharge" placeholder="VD: Nguyễn Văn A">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="btnCancelWarehouse">Hủy</button>
+        <button class="btn-primary" id="btnWarehouseSubmit">Lưu kho</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Add/Edit Office -->
+  <div class="modal-overlay" id="officeModal">
+    <div class="modal" style="width:480px">
+      <div class="modal-header">
+        <div class="modal-title" id="officeModalTitle">＋ Thêm văn phòng</div>
+        <button class="modal-close" id="btnCloseOffice">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="field-group">
+            <div class="field-label">Mã văn phòng <span class="req">*</span></div>
+            <input type="text" class="field-input" id="ofCode" placeholder="VD: OFF-HCM">
+          </div>
+          <div class="field-group">
+            <div class="field-label">Tên văn phòng <span class="req">*</span></div>
+            <input type="text" class="field-input" id="ofName" placeholder="VD: Văn phòng HCM">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field-group">
+            <div class="field-label">Địa chỉ</div>
+            <input type="text" class="field-input" id="ofLocation" placeholder="VD: 123 Lê Lợi, Q.1">
+          </div>
+          <div class="field-group">
+            <div class="field-label">Người phụ trách</div>
+            <input type="text" class="field-input" id="ofIncharge" placeholder="VD: Nguyễn Văn A">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="btnCancelOffice">Hủy</button>
+        <button class="btn-primary" id="btnOfficeSubmit">Lưu văn phòng</button>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL: Auth -->
   <div class="modal-overlay" id="authModal">
     <div class="modal" style="width:420px">
