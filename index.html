@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="vi">
 <head>
   <meta charset="UTF-8" />
@@ -21,9 +21,8 @@
     .main{overflow-y:auto;padding:24px}
 
     /* TOPBAR */
-    .brand{font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;color:var(--accent);letter-spacing:-0.5px;display:flex;align-items:center;gap:6px}
+    .brand{font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;color:var(--accent);letter-spacing:-0.5px}
     .brand span{color:var(--muted);font-weight:300}
-    .brand img{height:24px;width:auto;display:block}
     .topbar-search{flex:1;max-width:380px;margin-left:auto;position:relative}
     .topbar-search input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:inherit;font-size:13px;padding:7px 12px 7px 32px;outline:none;transition:border-color .2s}
     .topbar-search input:focus{border-color:var(--accent)}
@@ -214,16 +213,593 @@
     /* AUTH AREA */
     .auth-pill{display:flex;align-items:center;gap:10px}
     .auth-email{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+    /* THEME TOGGLE BTN */
+    .btn-theme{background:transparent;border:1px solid var(--border);border-radius:20px;color:var(--muted);cursor:pointer;font-size:14px;padding:4px 10px;transition:all .2s;display:flex;align-items:center;gap:5px;white-space:nowrap}
+    .btn-theme:hover{border-color:var(--accent);color:var(--accent)}
+
+    /* ── CYBERPUNK MODE ─────────────────────────────── */
+    body.cyber{
+      --bg:#030308;--surface:#07071a;--surface2:#0c0c28;--border:#00ffff33;
+      --text:#d0f8ff;--muted:#00bcd4;--dim:#005566;
+      --accent:#00ffff;--in:#00ff88;--out:#ff0055;--warn:#ffe600;
+    }
+    /* scanlines overlay */
+    body.cyber::after{
+      content:'';position:fixed;inset:0;
+      background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,255,255,.025) 3px,rgba(0,255,255,.025) 4px);
+      pointer-events:none;z-index:9996;
+    }
+    /* neon glow on surfaces */
+    body.cyber .card{box-shadow:0 0 10px rgba(0,255,255,.12),inset 0 0 0 1px rgba(0,255,255,.18)}
+    body.cyber .topbar{box-shadow:0 2px 24px rgba(0,255,255,.15);border-bottom:1px solid #00ffff33}
+    body.cyber .sidebar{box-shadow:2px 0 24px rgba(0,255,255,.08)}
+    body.cyber .modal{box-shadow:0 0 60px rgba(0,255,255,.25),0 0 0 1px #00ffff44}
+    body.cyber .modal-header h3{color:#00ffff;text-shadow:0 0 10px #00ffff88}
+    body.cyber .btn-primary{box-shadow:0 0 14px rgba(0,255,255,.4)}
+    body.cyber .fab{background:#00ffff;color:#030308;box-shadow:0 0 24px rgba(0,255,255,.7)}
+    body.cyber .fab:hover{box-shadow:0 0 36px rgba(0,255,255,.9)}
+    body.cyber input:focus,body.cyber select:focus{box-shadow:0 0 0 2px #00ffff55;border-color:#00ffff88}
+    body.cyber .nav-item.active{color:#00ffff;text-shadow:0 0 8px #00ffff}
+    body.cyber .badge-tx.badge-in{background:rgba(0,255,136,.15);color:#00ff88}
+    body.cyber .badge-tx.badge-out{background:rgba(255,0,85,.15);color:#ff0055}
+    body.cyber .hl{background:rgba(0,255,255,.2)}
+    body.cyber tr:hover td{background:rgba(0,255,255,.04)}
+    /* glitch on brand */
+    @keyframes cyberGlitch{
+      0%,90%,100%{text-shadow:none;clip-path:none;transform:translate(0)}
+      91%{text-shadow:3px 0 #ff0055,-3px 0 #00ffff;transform:translate(-2px,0)}
+      92%{transform:translate(2px,0);clip-path:polygon(0 30%,100% 30%,100% 50%,0 50%)}
+      93%{transform:translate(-1px,0);clip-path:none}
+      94%{text-shadow:-3px 0 #ff0055,3px 0 #00ffff}
+      95%{text-shadow:none;transform:translate(0)}
+    }
+    body.cyber .brand{animation:cyberGlitch 4s infinite;color:#00ffff!important}
+    body.cyber .brand span{color:#ff0055!important}
+    /* cyber canvas */
+    #cyberCanvas{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:60;opacity:0;transition:opacity .7s}
+    #cyberCanvas.active{opacity:1}
+    /* sakura canvas */
+    #sakuraCanvas{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:59;opacity:0;transition:opacity .7s}
+    #sakuraCanvas.active{opacity:1}
+    /* autumn canvas */
+    #autumnCanvas{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:59;opacity:0;transition:opacity .7s}
+    #autumnCanvas.active{opacity:1}
+
+    /* ── SAKURA THEME ─────────────────────────── */
+    body.sakura{
+      --bg:#fdf6f9;--surface:#fff;--surface2:#fce8f1;--border:#f7cfe3;
+      --text:#3d1a2e;--muted:#a0607a;--dim:#c992b0;
+      --accent:#d63878;--in:#2e9e5b;--out:#d63838;--warn:#b07d10;
+    }
+    body.sakura::after{
+      content:'';position:fixed;inset:0;
+      background:radial-gradient(ellipse at 15% 0%,rgba(255,182,212,.22) 0%,transparent 55%),
+                 radial-gradient(ellipse at 85% 100%,rgba(255,192,220,.18) 0%,transparent 55%);
+      pointer-events:none;z-index:9996;
+    }
+    body.sakura body{background:var(--bg)}
+    body.sakura .topbar{background:#fff;border-bottom:1px solid #f7cfe3;box-shadow:0 2px 16px rgba(214,56,120,.1)}
+    body.sakura .sidebar{background:#fffafc;border-right:1px solid #f7cfe3;box-shadow:none}
+    body.sakura .modal{background:#fff;border:1px solid #f7cfe3;box-shadow:0 8px 40px rgba(214,56,120,.15)}
+    body.sakura .modal-header{border-bottom:1px solid #fce8f1}
+    body.sakura .modal-footer{border-top:1px solid #fce8f1}
+    body.sakura .table-wrap{background:#fff;border:1px solid #f7cfe3}
+    body.sakura .table-header{background:#fce8f1}
+    body.sakura th{background:#fce8f1;color:#a0607a}
+    body.sakura td{border-bottom:1px solid #fce8f1}
+    body.sakura tr:hover td{background:#fdf0f6}
+    body.sakura .stat-card{background:#fff;border:1px solid #f7cfe3}
+    body.sakura .stock-card{background:#fff;border:1px solid #f7cfe3}
+    body.sakura .store-card{background:#fff;border:1px solid #f7cfe3}
+    body.sakura .btn-primary{background:#d63878;border:none;color:#fff;box-shadow:0 2px 10px rgba(214,56,120,.25)}
+    body.sakura .btn-primary:hover{background:#c0306a}
+    body.sakura .btn-secondary{border-color:#f7cfe3;color:#a0607a}
+    body.sakura .btn-secondary:hover{border-color:#d63878;color:#d63878}
+    body.sakura .fab{background:#d63878;color:#fff;box-shadow:0 4px 18px rgba(214,56,120,.4)}
+    body.sakura .fab:hover{box-shadow:0 6px 24px rgba(214,56,120,.55)}
+    body.sakura .filter-btn{border-color:#f7cfe3;color:#a0607a}
+    body.sakura .filter-btn:hover{border-color:#d63878;color:#d63878}
+    body.sakura .filter-btn.active{background:#d63878;border-color:#d63878;color:#fff}
+    body.sakura .filter-select{background:#fce8f1;border-color:#f7cfe3;color:#3d1a2e}
+    body.sakura .nav-item:hover{background:#fce8f1}
+    body.sakura .nav-item.active{background:#fce8f1;color:#d63878;border-left-color:#d63878}
+    body.sakura .pg-btn.active{background:#d63878;border-color:#d63878;color:#fff}
+    body.sakura input,body.sakura select,body.sakura textarea{background:#fff;border-color:#f7cfe3;color:#3d1a2e}
+    body.sakura input:focus,body.sakura select:focus{border-color:#d63878;box-shadow:0 0 0 3px rgba(214,56,120,.12)}
+    body.sakura .hl{background:rgba(214,56,120,.18);border-radius:2px}
+    body.sakura .topbar-search input{background:#fce8f1;border-color:#f7cfe3}
+    body.sakura .topbar-search input:focus{background:#fff;border-color:#d63878}
+    body.sakura ::-webkit-scrollbar-thumb{background:#f7cfe3}
+    body.sakura ::-webkit-scrollbar-thumb:hover{background:#e8a0bf}
+    body.sakura .badge{background:#d63878;color:#fff}
+    body.sakura .autocomplete-list{background:#fff;border-color:#f7cfe3}
+    body.sakura .autocomplete-item:hover{background:#fce8f1}
+    @keyframes sakuraBrand{
+      0%,100%{filter:brightness(1)}
+      50%{filter:brightness(1.15) drop-shadow(0 0 6px rgba(214,56,120,.5))}
+    }
+    body.sakura .brand{animation:sakuraBrand 3s ease-in-out infinite;color:#d63878!important}
+    body.sakura .brand span{color:#e8a0bf!important}
+
+    /* ── AUTUMN THEME ────────────────────────────────── */
+    body.autumn{
+      --bg:#fef8f0;--surface:#fff;--surface2:#fef0da;--border:#f4c88a88;
+      --text:#3e1f05;--muted:#a0602a;--dim:#d4a870;
+      --accent:#c8702a;--in:#4a8c2a;--out:#c84040;--warn:#b07810;
+    }
+    body.autumn::after{
+      content:'';position:fixed;inset:0;
+      background:radial-gradient(ellipse at 20% 0%,rgba(244,160,60,.1) 0%,transparent 55%),
+                 radial-gradient(ellipse at 80% 100%,rgba(220,130,50,.08) 0%,transparent 55%);
+      pointer-events:none;z-index:9996;
+    }
+    body.autumn .topbar{background:#fff;border-bottom:1px solid #f4c88a88;box-shadow:0 2px 16px rgba(200,112,42,.1)}
+    body.autumn .sidebar{background:#fffdf8;border-right:1px solid #f4c88a88}
+    body.autumn .modal{background:#fff;border:1px solid #f4c88a99;box-shadow:0 8px 40px rgba(200,112,42,.15)}
+    body.autumn .modal-header{border-bottom:1px solid #fef0da}
+    body.autumn .modal-footer{border-top:1px solid #fef0da}
+    body.autumn .table-wrap{background:#fff;border:1px solid #f4c88a88}
+    body.autumn .table-header,body.autumn th{background:#fef0da;color:#a0602a}
+    body.autumn td{border-bottom:1px solid #f4c88a55}
+    body.autumn tr:hover td{background:#fef8ed}
+    body.autumn .stat-card{background:#fff;border:1px solid #f4c88a88}
+    body.autumn .stock-card{background:#fff;border:1px solid #f4c88a88}
+    body.autumn .store-card{background:#fff;border:1px solid #f4c88a88}
+    body.autumn .btn-primary{background:#c8702a;border:none;color:#fff;box-shadow:0 2px 10px rgba(200,112,42,.25)}
+    body.autumn .btn-primary:hover{background:#b05e20}
+    body.autumn .btn-secondary{border-color:#f4c88a88;color:#a0602a}
+    body.autumn .btn-secondary:hover{border-color:#c8702a;color:#c8702a}
+    body.autumn .fab{background:#c8702a;color:#fff;box-shadow:0 4px 18px rgba(200,112,42,.4)}
+    body.autumn .filter-btn{border-color:#f4c88a88;color:#a0602a}
+    body.autumn .filter-btn:hover{border-color:#c8702a;color:#c8702a}
+    body.autumn .filter-btn.active{background:#c8702a;border-color:#c8702a;color:#fff}
+    body.autumn .filter-select{background:#fef0da;border-color:#f4c88a88;color:#3e1f05}
+    body.autumn .nav-item:hover{background:#fef0da}
+    body.autumn .nav-item.active{background:#fef0da;color:#c8702a;border-left-color:#c8702a}
+    body.autumn .pg-btn.active{background:#c8702a;border-color:#c8702a;color:#fff}
+    body.autumn input,body.autumn select,body.autumn textarea{background:#fff;border-color:#f4c88a88;color:#3e1f05}
+    body.autumn input:focus,body.autumn select:focus{border-color:#c8702a;box-shadow:0 0 0 3px rgba(200,112,42,.12)}
+    body.autumn .topbar-search input{background:#fef0da;border-color:#f4c88a88}
+    body.autumn .topbar-search input:focus{background:#fff;border-color:#c8702a}
+    body.autumn .hl{background:rgba(200,112,42,.18);border-radius:2px}
+    body.autumn .badge{background:#c8702a;color:#fff}
+    body.autumn .autocomplete-list{background:#fff;border-color:#f4c88a88}
+    body.autumn .autocomplete-item:hover{background:#fef0da}
+    body.autumn ::-webkit-scrollbar-thumb{background:#f4c88a88}
+    body.autumn ::-webkit-scrollbar-thumb:hover{background:#d4a870}
+    @keyframes autumnBrand{
+      0%,100%{filter:brightness(1)}
+      50%{filter:brightness(1.1) drop-shadow(0 0 6px rgba(200,112,42,.45))}
+    }
+    body.autumn .brand{animation:autumnBrand 3.5s ease-in-out infinite;color:#c8702a!important}
+    body.autumn .brand span{color:#d4a870!important}
+
+    /* ── EXCEL THEME ─────────────────────────────────── */
+    body.excel{
+      --bg:#ffffff;--surface:#e4e9ee;--surface2:#d6dde4;--border:#c0cad4;
+      --text:#212529;--muted:#6c757d;--dim:#adb5bd;
+      --accent:#1d6f42;--in:#198754;--out:#dc3545;--warn:#ffc107;
+    }
+    body.excel .topbar{background:#1d6f42;border-bottom:none;box-shadow:0 2px 10px rgba(0,0,0,.15);color:#fff}
+    body.excel .brand{color:#fff!important;text-transform:uppercase;letter-spacing:1px;font-weight:700}
+    body.excel .brand span{color:#a9dfbf!important}
+    body.excel .topbar-search input{background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.3);color:#fff}
+    body.excel .topbar-search input::placeholder{color:rgba(255,255,255,.8)}
+    body.excel .topbar-search input:focus{background:#fff;border-color:#fff;color:#000}
+    body.excel .topbar-search::before{color:rgba(255,255,255,.8)}
+    body.excel .btn-theme{color:rgba(255,255,255,.9);border-color:rgba(255,255,255,.4)}
+    body.excel .btn-theme:hover{background:rgba(255,255,255,.2);color:#fff;border-color:#fff}
+    body.excel .btn-secondary{color:rgba(255,255,255,.9);border-color:rgba(255,255,255,.4)}
+    body.excel .btn-secondary:hover{background:rgba(255,255,255,.2);color:#fff;border-color:#fff}
+    body.excel .sidebar{background:#faf9f6;border-right:1px solid #e0dbd2}
+    body.excel .nav-item:hover{background:#e9ecef}
+    body.excel .nav-item.active{background:#d4edda;color:#155724;border-left-color:#155724;font-weight:600}
+    body.excel .stat-card{background:#e4e9ee;border:1px solid #c0cad4;box-shadow:0 4px 12px rgba(0,0,0,.1)}
+    body.excel .table-header th{background:#e9ecef;color:#495057;font-weight:700;border-right:1px solid #dee2e6;text-transform:none}
+    body.excel td{border-bottom:1px solid #e9ecef;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#333}
+    body.excel tr.is-new td{background:rgba(25,135,84,.1)}
+    body.excel .btn-primary{background:#1d6f42;box-shadow:0 2px 6px rgba(29,111,66,.3)}
+    body.excel .btn-primary:hover{background:#145532}
+    body.excel .fab{background:#1d6f42;color:#fff;box-shadow:0 4px 12px rgba(29,111,66,.4)}
+    body.excel .modal{background:#e4e9ee;border:1px solid #c0cad4;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+    body.excel .stock-card{background:#e4e9ee;border:1px solid #c0cad4;box-shadow:0 4px 12px rgba(0,0,0,.1)}
+    body.excel .store-card{background:#e4e9ee;border:1px solid #c0cad4;box-shadow:0 4px 12px rgba(0,0,0,.1)}
+    body.excel .table-wrap{background:#e4e9ee;border:1px solid #c0cad4;box-shadow:0 4px 12px rgba(0,0,0,.1)}
+    body.excel .modal-header{background:#1d6f42;color:#fff}
+    body.excel .modal-title{color:#fff}
+    body.excel .modal-close{color:rgba(255,255,255,.8)}
+    body.excel .modal-close:hover{color:#fff}
+    body.excel .badge{background:#fff;color:#1d6f42}
+    body.excel .stock-card .sc-qty{color:#1d6f42}
+
+
+  /* ════════════════════════════════════════════
+     INTRO OVERLAY
+  ═══════════════════════════════════════════ */
+  #introOverlay{
+    position:fixed;inset:0;z-index:9000;
+    background:#030308;
+    display:flex;flex-direction:column;
+    overflow:hidden;
+    transition:opacity .6s ease, visibility .6s ease;
+  }
+  #introOverlay.hidden{opacity:0;visibility:hidden;pointer-events:none;}
+
+  /* scanlines */
+  #introOverlay::after{
+    content:'';position:absolute;inset:0;
+    background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,255,255,.018) 3px,rgba(0,255,255,.018) 4px);
+    pointer-events:none;z-index:1;
+  }
+
+  /* top bar inside overlay */
+  .io-topbar{
+    display:flex;align-items:center;padding:0 40px;gap:20px;
+    height:60px;flex-shrink:0;
+    border-bottom:1px solid rgba(0,255,255,.15);
+    background:rgba(7,7,26,.85);backdrop-filter:blur(8px);
+    position:relative;z-index:2;
+  }
+  .io-brand{font-family:'IBM Plex Mono',monospace;font-size:17px;font-weight:600;color:#00ffff;letter-spacing:-.5px;animation:glitch 5s infinite}
+  .io-brand span{color:#ff0055}
+  @keyframes glitch{
+    0%,88%,100%{text-shadow:none}
+    89%{text-shadow:3px 0 #ff0055,-3px 0 #00ffff;transform:translateX(-2px)}
+    90%{text-shadow:-3px 0 #ff0055,3px 0 #00ffff;transform:translateX(2px)}
+    91%{text-shadow:none;transform:none}
+  }
+  .io-tagline{font-size:11px;color:#00bcd4;font-family:'IBM Plex Mono',monospace}
+  .io-enter{
+    margin-left:auto;padding:8px 26px;
+    background:transparent;border:1px solid #00ffff;
+    border-radius:4px;color:#00ffff;
+    font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;
+    cursor:pointer;letter-spacing:1px;transition:all .2s;
+    display:flex;align-items:center;gap:8px;
+  }
+  .io-enter:hover{background:rgba(0,255,255,.12);box-shadow:0 0 20px #00ffff44;letter-spacing:2px}
+  .io-enter .arr{transition:transform .2s}
+  .io-enter:hover .arr{transform:translateX(4px)}
+  .io-enter-hint{font-size:10px;color:rgba(0,255,255,.45);font-family:'IBM Plex Mono',monospace;margin-left:4px}
+
+  /* body row = scene-area + login-side */
+  .io-body{flex:1;display:flex;overflow:hidden;min-height:0}
+  .io-scene-area{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;min-width:0}
+  .io-login-side{
+    width:320px;flex-shrink:0;
+    background:rgba(5,5,20,.94);backdrop-filter:blur(12px);
+    border-left:1px solid rgba(0,255,255,.15);
+    display:flex;align-items:center;justify-content:center;
+    padding:28px 24px;
+  }
+
+  /* stage */
+  .io-stage{
+    flex:1;position:relative;overflow:hidden;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .io-scene{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .5s}
+  .io-scene.active{opacity:1;pointer-events:all}
+
+  /* hud corners */
+  .io-corner{position:absolute;width:18px;height:18px;border-color:rgba(0,255,255,.22);border-style:solid;z-index:2}
+  .io-corner.tl{top:10px;left:10px;border-width:1px 0 0 1px}
+  .io-corner.tr{top:10px;right:10px;border-width:1px 1px 0 0}
+  .io-corner.bl{bottom:10px;left:10px;border-width:0 0 1px 1px}
+  .io-corner.br{bottom:10px;right:10px;border-width:0 1px 1px 0}
+  .io-hud-tl{position:absolute;top:18px;left:18px;font-family:'IBM Plex Mono',monospace;font-size:9px;color:rgba(0,255,255,.32);line-height:1.8;z-index:2}
+  .io-hud-tr{position:absolute;top:18px;right:18px;font-family:'IBM Plex Mono',monospace;font-size:9px;color:rgba(0,255,255,.32);text-align:right;line-height:1.8;z-index:2}
+
+  /* tab bar */
+  .io-tabs{
+    display:flex;flex-shrink:0;
+    border-top:1px solid rgba(0,255,255,.12);
+    background:rgba(7,7,26,.95);height:100px;
+    position:relative;z-index:2;
+  }
+  .io-tab{
+    flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:5px;padding:8px 6px;cursor:pointer;
+    border-right:1px solid rgba(0,255,255,.08);transition:all .2s;
+    position:relative;overflow:hidden;
+  }
+  .io-tab:last-child{border-right:none}
+  .io-tab::before{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:#00ffff;transform:scaleX(0);transition:transform .3s}
+  .io-tab.active::before{transform:scaleX(1)}
+  .io-tab.active .io-tab-icon{color:#00ffff;text-shadow:0 0 10px #00ffff}
+  .io-tab.active .io-tab-lbl{color:#00ffff}
+  .io-tab:hover{background:rgba(0,255,255,.04)}
+  .io-tab-icon{font-size:20px;color:rgba(0,255,255,.25);transition:all .2s}
+  .io-tab-lbl{font-size:11px;font-family:'IBM Plex Mono',monospace;color:rgba(0,188,212,.7);font-weight:500;text-transform:uppercase;letter-spacing:.8px;transition:color .2s}
+  .io-tab-desc{font-size:10px;color:rgba(0,85,102,.9);text-align:center;line-height:1.35;max-width:110px}
+  .io-scene-progress{position:absolute;bottom:0;left:0;height:2px;background:#00ffff;box-shadow:0 0 6px #00ffff;opacity:.55;transition:width .1s linear;pointer-events:none}
+
+  /* ─── SCENE COMMON ─── */
+  .io-label{
+    position:absolute;top:16px;left:50%;transform:translateX(-50%);
+    font-family:'IBM Plex Mono',monospace;font-size:10px;color:rgba(0,188,212,.6);
+    letter-spacing:2px;text-transform:uppercase;
+    border:1px solid rgba(0,255,255,.15);padding:3px 12px;border-radius:2px;
+    background:rgba(7,7,26,.5);z-index:2;white-space:nowrap;
+  }
+
+  /* ambient particles canvas inside overlay */
+  #ioParticles{position:absolute;inset:0;z-index:0;pointer-events:none}
+
+  /* ── SCENE 1 – DASHBOARD ── */
+  .io-s-dash{width:100%;height:100%;display:flex;align-items:flex-end;justify-content:center;padding-bottom:20px;position:relative}
+  .io-floor{position:absolute;bottom:62px;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,#00ffff22 30%,#00ffff22 70%,transparent)}
+  .io-desk{position:absolute;bottom:80px;right:22%;width:200px}
+  .io-desk-top{height:13px;background:linear-gradient(180deg,#1a3a4a,#0d2535);border:1px solid #00ffff44;border-radius:3px 3px 0 0;box-shadow:0 0 10px #00ffff22}
+  .io-desk-legs{display:flex;justify-content:space-between}
+  .io-desk-leg{width:7px;height:46px;background:#0d2535;border:1px solid #00ffff22;margin:0 10px;border-radius:0 0 2px 2px;display:inline-block}
+  .io-mon{width:110px;height:74px;background:#030a10;border:2px solid #00ffff55;border-radius:4px;margin:-2px auto 0;position:relative;overflow:hidden;box-shadow:0 0 18px #00ffff33}
+  .io-mon-screen{position:absolute;inset:4px;background:#030a10;opacity:0;transition:opacity .9s;overflow:hidden}
+  .io-mon-screen.on{opacity:1}
+  .io-mon-bar{height:5px;background:linear-gradient(90deg,#00ffff,#00ffff66);border-radius:3px;margin:4px 4px 0}
+  .io-mon-bar.g{background:linear-gradient(90deg,#00ff88,#00ff8866)}
+  .io-mon-row{display:flex;gap:3px;margin:3px 4px 0}
+  .io-mon-cell{flex:1;height:18px;border-radius:2px;background:rgba(0,255,255,.07);border:1px solid #00ffff1a}
+  .io-mon-base{width:10px;height:7px;background:#0d2535;border:1px solid #00ffff22;margin:0 auto;border-radius:0 0 3px 3px}
+  .io-hstat{font-family:'IBM Plex Mono',monospace;font-size:10px;color:#00ffff;border-left:2px solid #00ffff;padding:2px 8px;margin-bottom:4px;background:rgba(0,255,255,.05)}
+  .io-person{position:absolute;bottom:97px;animation:io-walkIn 1.6s cubic-bezier(.4,0,.2,1) forwards;will-change:left}
+  @keyframes io-walkIn{0%{left:-80px;opacity:0}60%{opacity:1}100%{left:calc(22% - 68px)}}
+  .io-p-head{width:17px;height:17px;background:linear-gradient(135deg,#f0c080,#d0a060);border-radius:50%;margin:0 auto;border:1.5px solid #e0b070}
+  .io-p-trunk{width:13px;height:21px;background:linear-gradient(180deg,#1a4a8a,#0d3060);border-radius:3px;margin:1px auto 0;border:1px solid #2a6ab0;position:relative}
+  .io-p-arm{position:absolute;width:5px;height:14px;background:#1a4a8a;border-radius:3px;top:2px;border:1px solid #2a6ab0}
+  .io-p-arm.l{left:-5px;transform-origin:top center;animation:io-armL .4s ease-in-out infinite}
+  .io-p-arm.r{right:-5px;transform-origin:top center;animation:io-armR .4s ease-in-out infinite}
+  @keyframes io-armL{0%,100%{transform:rotate(20deg)}50%{transform:rotate(-20deg)}}
+  @keyframes io-armR{0%,100%{transform:rotate(-20deg)}50%{transform:rotate(20deg)}}
+  .io-p-legs{display:flex;gap:3px;justify-content:center;margin-top:1px}
+  .io-p-leg{width:5px;height:15px;background:#1a2a4a;border-radius:0 0 2px 2px;border:1px solid #2a3a5a}
+  .io-p-leg.l{animation:io-legL .4s ease-in-out infinite}
+  .io-p-leg.r{animation:io-legR .4s ease-in-out infinite}
+  @keyframes io-legL{0%,100%{transform:rotate(18deg)}50%{transform:rotate(-18deg)}}
+  @keyframes io-legR{0%,100%{transform:rotate(-18deg)}50%{transform:rotate(18deg)}}
+
+  /* ── SCENE 2 – TRANSACTIONS ── */
+  .io-s-tx{width:100%;height:100%;position:relative;display:flex;align-items:center;justify-content:center}
+  .io-tx-floor{position:absolute;bottom:calc(50% - 68px);left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,255,255,.15) 20%,rgba(0,255,255,.15) 80%,transparent)}
+  .io-pa{position:absolute;left:15%;bottom:calc(50% - 58px);animation:io-txA 1.4s .2s cubic-bezier(.4,0,.2,1) forwards;opacity:0}
+  @keyframes io-txA{from{left:2%;opacity:0}to{left:15%;opacity:1}}
+  .io-pb{position:absolute;right:15%;bottom:calc(50% - 58px);animation:io-txB 1.4s .4s cubic-bezier(.4,0,.2,1) forwards;transform:scaleX(-1);opacity:0}
+  @keyframes io-txB{from{right:2%;opacity:0}to{right:15%;opacity:1}}
+  .io-device-arc{position:absolute;opacity:0;animation:io-arc 1.2s 2.2s cubic-bezier(.4,0,.6,1) forwards}
+  @keyframes io-arc{
+    0%{opacity:1;left:28%;top:40%;transform:translate(-50%,-50%) scale(1)}
+    50%{top:22%;opacity:1;transform:translate(-50%,-50%) scale(1.25)}
+    100%{opacity:1;left:72%;top:40%;transform:translate(-50%,-50%) scale(1)}
+  }
+  .io-device-icon{width:42px;height:30px;background:#0d2535;border:2px solid #00ffff;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:17px;box-shadow:0 0 18px #00ffff55}
+  .io-trail{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);height:1px;background:linear-gradient(90deg,transparent,#00ffff,transparent);opacity:0;animation:io-trail .8s 2.4s forwards}
+  @keyframes io-trail{0%{opacity:0;width:0}50%{opacity:.8;width:300px}100%{opacity:0;width:280px}}
+  .io-assign-list{position:absolute;right:5%;top:18%;background:rgba(7,7,26,.9);border:1px solid rgba(0,255,255,.2);border-radius:4px;padding:10px 14px;font-family:'IBM Plex Mono',monospace;font-size:10px;opacity:0;animation:io-fadeUp .6s 3.2s forwards;min-width:140px}
+  @keyframes io-fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  .io-al-title{color:#00ffff;font-size:9px;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;border-bottom:1px solid rgba(0,255,255,.15);padding-bottom:3px}
+  .io-al-item{display:flex;justify-content:space-between;gap:10px;margin-bottom:3px;color:#00bcd4}
+  .io-al-item .sn{color:#d0f8ff}
+  .io-badge{font-family:'IBM Plex Mono',monospace;font-size:10px;border:1px solid;padding:3px 8px;border-radius:2px;position:absolute;top:18%;}
+  .io-badge.out{left:12%;color:#ff0055;border-color:rgba(255,0,85,.3);background:rgba(255,0,85,.06)}
+  .io-badge.in{right:12%;color:#00ff88;border-color:rgba(0,255,136,.3);background:rgba(0,255,136,.06)}
+
+  /* ── SCENE 3 – STOCK ── */
+  .io-s-stock{width:100%;height:100%;position:relative;display:flex;align-items:flex-end;justify-content:center;padding-bottom:20px}
+  .io-rack{position:absolute;right:18%;bottom:82px;width:180px}
+  .io-rack-frame{border:2px solid rgba(0,255,255,.28);border-radius:3px;padding:6px;background:linear-gradient(180deg,#0a1a2a,#05101a);box-shadow:0 0 28px #00ffff1a}
+  .io-ru{height:19px;background:linear-gradient(90deg,#0a2a1a,#051510);border:1px solid rgba(0,255,136,.2);border-radius:2px;margin-bottom:4px;display:flex;align-items:center;padding:0 6px;gap:6px;position:relative}
+  .io-ru::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:#00ff88;box-shadow:0 0 6px #00ff88}
+  .io-ru.empty{border-color:rgba(255,255,255,.07);opacity:.35}
+  .io-ru.empty::before{background:#333;box-shadow:none}
+  .io-ru-led{width:4px;height:4px;border-radius:50%;background:#00ff88;box-shadow:0 0 4px #00ff88;animation:ioBlink 2s infinite}
+  .io-ru.empty .io-ru-led{background:#333;box-shadow:none}
+  @keyframes ioBlink{0%,100%{opacity:1}50%{opacity:.25}}
+  .io-ru-lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:rgba(0,255,136,.75);letter-spacing:.5px;flex:1}
+  .io-ru-bar{height:4px;background:rgba(0,255,136,.12);border-radius:2px;overflow:hidden;width:40px}
+  .io-ru-bar::after{content:'';display:block;height:100%;background:linear-gradient(90deg,#00ff88,rgba(0,255,136,.5));border-radius:2px;animation:ioFillBar 1.5s ease-out forwards}
+  @keyframes ioFillBar{from{width:0}to{width:var(--w,85%)}}
+  .io-rack-lbl{text-align:center;font-family:'IBM Plex Mono',monospace;font-size:9px;color:rgba(0,255,255,.25);margin-top:6px;letter-spacing:1px}
+  .io-stock-person{position:absolute;bottom:97px;animation:io-stockWalk 2s .5s cubic-bezier(.4,0,.2,1) forwards;opacity:0}
+  @keyframes io-stockWalk{0%{left:-60px;opacity:0}70%{opacity:1}100%{left:calc(82% - 240px);opacity:1}}
+  .io-scanbeam{position:absolute;left:calc(82% - 218px);top:38%;width:0;height:2px;background:linear-gradient(90deg,rgba(0,255,255,.8),transparent);transform-origin:left;animation:io-scanPulse 1s 2.5s infinite;opacity:0;border-radius:1px;pointer-events:none}
+  @keyframes io-scanPulse{0%{opacity:0;width:0}30%{opacity:.9;width:78px}100%{opacity:0;width:55px}}
+  .io-item-hl{position:absolute;right:calc(18% - 12px);top:28%;opacity:0;animation:io-fadeUp .5s 2.8s forwards;background:rgba(0,255,136,.06);border:1px solid rgba(0,255,136,.3);border-radius:3px;padding:4px 8px;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#00ff88}
+  .io-wh-stat{position:absolute;left:8%;top:14%;font-family:'IBM Plex Mono',monospace;font-size:10px;line-height:2;border:1px solid rgba(0,255,255,.15);padding:8px 12px;background:rgba(7,7,26,.7);border-radius:3px;animation:io-fadeUp .6s 1s both}
+
+  /* ── SCENE 4 – STORES ── */
+  .io-s-stores{width:100%;height:100%;position:relative;overflow:hidden}
+  .io-map-grid{position:absolute;inset:0;background:linear-gradient(rgba(0,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,255,255,.025) 1px,transparent 1px);background-size:44px 44px;background-color:#030308}
+  .io-road-h{position:absolute;height:1px;background:rgba(0,255,255,.07);left:0;right:0}
+  .io-road-v{position:absolute;width:1px;background:rgba(0,255,255,.07);top:0;bottom:0}
+  .io-pin{position:absolute;display:flex;flex-direction:column;align-items:center;animation:io-pinPop .4s ease-out forwards;opacity:0;transform:scale(0)}
+  @keyframes io-pinPop{to{opacity:1;transform:scale(1)}}
+  .io-pin-dot{width:11px;height:11px;border-radius:50%;background:#00ffff;box-shadow:0 0 12px #00ffff;position:relative;z-index:2}
+  .io-pin-dot.star{background:#ffe600;box-shadow:0 0 18px #ffe600;animation:io-starPing 1.5s infinite}
+  @keyframes io-starPing{0%,100%{box-shadow:0 0 12px #ffe600}50%{box-shadow:0 0 28px #ffe600,0 0 0 10px rgba(255,230,0,.12)}}
+  .io-pin-ripple{position:absolute;width:11px;height:11px;border-radius:50%;border:1px solid #00ffff;top:0;left:0;animation:io-ripple 2s infinite;opacity:0}
+  @keyframes io-ripple{0%{opacity:.8;transform:scale(1)}100%{opacity:0;transform:scale(4)}}
+  .io-pin-lbl{font-family:'IBM Plex Mono',monospace;font-size:8px;color:rgba(0,188,212,.8);margin-top:4px;white-space:nowrap;background:rgba(3,3,8,.8);padding:1px 4px;border-radius:2px;border:1px solid rgba(0,255,255,.15)}
+  .io-runner{position:absolute;z-index:10}
+  .io-runner-dot{width:9px;height:9px;background:#fff;border-radius:50%;box-shadow:0 0 10px #fff,0 0 0 3px rgba(255,255,255,.25)}
+  .io-runner-trail{position:absolute;width:24px;height:1px;background:linear-gradient(90deg,rgba(255,255,255,.35),transparent);right:8px;top:50%;transform:translateY(-50%);border-radius:1px}
+  .io-store-detail{position:absolute;top:8%;right:4%;background:rgba(7,7,26,.92);border:1px solid rgba(255,230,0,.5);border-radius:6px;padding:12px 16px;opacity:0;animation:io-fadeUp .6s 3.4s forwards;min-width:155px}
+  .io-sd-title{font-family:'IBM Plex Mono',monospace;font-size:10px;color:#ffe600;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+  .io-sd-row{display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px;color:rgba(0,188,212,.8)}
+  .io-sd-row .v{color:#d0f8ff}
+
+  /* ── SCENE 5 – OFFICE FPV ── */
+  .io-s-office{width:100%;height:100%;position:relative;overflow:hidden}
+  .io-corridor{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+  .io-ceil{position:absolute;top:0;left:0;right:0;height:44%;background:linear-gradient(180deg,#020810,#081422);clip-path:polygon(0 0,100% 0,90% 100%,10% 100%)}
+  .io-ground{position:absolute;bottom:0;left:0;right:0;height:44%;background:linear-gradient(180deg,#081420,#030c14);clip-path:polygon(10% 0,90% 0,100% 100%,0 100%)}
+  .io-wall-l{position:absolute;left:0;top:0;bottom:0;width:11%;background:linear-gradient(90deg,#020810,#061018)}
+  .io-wall-r{position:absolute;right:0;top:0;bottom:0;width:11%;background:linear-gradient(270deg,#020810,#061018)}
+  .io-vp{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:50px;height:50px;background:radial-gradient(circle,rgba(0,255,255,.22),transparent 70%);border-radius:50%}
+  .io-door{position:absolute;top:30%;left:42%;width:16%;height:40%;background:#04101a;border:1px solid rgba(0,255,255,.35);border-radius:2px 2px 0 0;box-shadow:0 0 28px rgba(0,255,255,.18)}
+  .io-door::before{content:'';position:absolute;inset:4px;border:1px solid rgba(0,255,255,.18)}
+  .io-doorknob{position:absolute;right:10px;top:50%;width:4px;height:4px;background:#ffe600;border-radius:50%;box-shadow:0 0 6px #ffe600;transform:translateY(-50%)}
+  .io-fpv-desk{position:absolute;bottom:44%;left:50%;transform:translateX(-50%);width:330px;height:48px;background:linear-gradient(180deg,#1a3a5a,#0d2035);border:1px solid rgba(0,255,255,.35);border-radius:4px;display:flex;align-items:flex-start;justify-content:center;padding-top:4px;gap:18px;animation:io-deskIn 1s .4s both}
+  @keyframes io-deskIn{from{opacity:0;transform:translateX(-50%) translateY(18px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+  .io-pc{width:48px;height:38px;background:#020810;border:1.5px solid #00ffff;border-radius:3px;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:8px;color:#00ffff;box-shadow:0 0 12px rgba(0,255,255,.35);position:relative}
+  .io-mon2{width:58px;height:42px;background:#020810;border:2px solid #00ffff;border-radius:3px;position:relative;overflow:hidden;box-shadow:0 0 18px rgba(0,255,255,.45)}
+  .io-mon2-screen{position:absolute;inset:2px;display:flex;flex-direction:column;gap:2px;padding:3px}
+  .io-m2-bar{height:3px;background:linear-gradient(90deg,#00ffff,rgba(0,255,255,.4));border-radius:2px}
+  .io-m2-row{display:flex;gap:2px;flex:1}
+  .io-m2-cell{flex:1;border-radius:1px;background:rgba(0,255,255,.05);border:1px solid rgba(0,255,255,.18)}
+  .io-ntag{position:absolute;opacity:0;font-family:'IBM Plex Mono',monospace;font-size:9px;color:#00ffff;border:1px solid rgba(0,255,255,.25);background:rgba(3,3,8,.8);padding:2px 6px;border-radius:2px;white-space:nowrap;animation:io-fadeUp .5s forwards}
+  .io-walk-fwd{position:absolute;bottom:47%;left:50%;transform:translateX(-50%);font-family:'IBM Plex Mono',monospace;font-size:9px;color:rgba(0,255,255,.4);letter-spacing:2px;animation:io-breathe 1.2s infinite}
+  @keyframes io-breathe{0%,100%{opacity:.35}50%{opacity:.75}}
+  .io-fpv-hud-l{position:absolute;left:3%;top:50%;transform:translateY(-50%);border-left:2px solid rgba(0,255,255,.25);padding-left:8px;font-family:'IBM Plex Mono',monospace;font-size:9px;line-height:2;color:rgba(0,255,255,.35)}
+  .io-fpv-hud-r{position:absolute;right:3%;top:50%;transform:translateY(-50%);border-right:2px solid rgba(0,255,255,.25);padding-right:8px;font-family:'IBM Plex Mono',monospace;font-size:9px;line-height:2;color:rgba(0,255,255,.35);text-align:right}
+
+  /* ── SCENE: CAR WAITING ── */
+  /* ── CAR SCENE ── */
+  .io-car-scene{width:100%;height:100%;position:relative;overflow:hidden;
+    background:linear-gradient(180deg,#01010b 0%,#020c1a 60%,#031830 60.1%,#020a14 100%)}
+  #ioRain{position:absolute;inset:0;pointer-events:none;z-index:2;opacity:.55}
+  .io-horizon{position:absolute;left:0;right:0;bottom:30%;height:1px;z-index:3;
+    background:linear-gradient(90deg,transparent,rgba(0,255,255,.85) 20%,rgba(0,255,255,.85) 80%,transparent);
+    box-shadow:0 0 22px 3px rgba(0,255,255,.55),0 0 80px 12px rgba(0,255,255,.18)}
+  /* city */
+  .io-city{position:absolute;left:0;right:0;bottom:30%;height:56%}
+  .io-bld{position:absolute;bottom:0;border:1px solid rgba(0,255,255,.1);border-bottom:none;overflow:hidden}
+  .io-bld-face{width:100%;height:100%;
+    background:
+      repeating-linear-gradient(90deg,transparent 0,transparent 9px,rgba(0,255,255,.028) 9px,rgba(0,255,255,.028) 10px),
+      repeating-linear-gradient(180deg,transparent 0,transparent 9px,rgba(0,255,255,.025) 9px,rgba(0,255,255,.025) 10px);
+    background-color:#01040c}
+  .io-bld-top{position:absolute;top:0;left:0;right:0;height:2px;
+    background:linear-gradient(90deg,transparent,rgba(0,255,255,.55),transparent);
+    box-shadow:0 0 6px rgba(0,255,255,.4)}
+  /* road */
+  .io-road-surface{position:absolute;left:0;right:0;bottom:0;height:30%;
+    background:linear-gradient(180deg,#05101a,#020810)}
+  .io-road-ref{position:absolute;top:0;left:0;right:0;height:35%;
+    background:linear-gradient(180deg,rgba(0,255,255,.07),transparent);pointer-events:none}
+  .io-road-center{position:absolute;top:40%;left:0;right:0;height:2px;
+    background:repeating-linear-gradient(90deg,rgba(255,230,0,.55) 0,rgba(255,230,0,.55) 26px,transparent 26px,transparent 54px);
+    animation:io-rdScroll .65s linear infinite}
+  @keyframes io-rdScroll{to{background-position:54px 0}}
+  /* car */
+  #ioCar{position:absolute;bottom:calc(30% - 18px);left:6%;width:48%;max-width:500px;min-width:240px;overflow:visible;z-index:4}
+  #ioCar svg{display:block;filter:drop-shadow(0 0 14px rgba(0,255,255,.28)) drop-shadow(0 4px 14px rgba(0,0,0,.7))}
+  /* person */
+  .io-wait-person{position:absolute;bottom:calc(30% + 6px);left:56%;z-index:5}
+  /* status */
+  .io-car-status{position:absolute;top:10%;left:50%;transform:translateX(-50%);
+    font-family:'IBM Plex Mono',monospace;font-size:11px;color:rgba(0,188,212,.65);
+    letter-spacing:2.5px;text-transform:uppercase;border:1px solid rgba(0,255,255,.18);
+    padding:4px 16px;border-radius:2px;background:rgba(7,7,26,.6);white-space:nowrap;z-index:6;
+    animation:io-statusBlink 2.2s ease-in-out infinite}
+  @keyframes io-statusBlink{0%,100%{opacity:.6;border-color:rgba(0,255,255,.18)}50%{opacity:1;border-color:rgba(0,255,255,.5)}}
+  .io-exhaust{position:absolute;border-radius:50%;background:rgba(160,200,255,.18);
+    border:1px solid rgba(0,255,255,.25);pointer-events:none;z-index:5;
+    animation:io-puff .9s ease-out forwards}
+  @keyframes io-puff{0%{opacity:.8;transform:scale(.3)}100%{opacity:0;transform:scale(3) translate(-16px,-10px)}}
+
+  /* ── LOGIN PANEL ── */
+  .io-login-panel{
+    position:relative;width:100%;
+    background:rgba(7,7,26,.88);backdrop-filter:blur(16px);
+    border:1px solid rgba(0,255,255,.28);border-radius:8px;
+    box-shadow:0 0 40px rgba(0,255,255,.12),0 8px 40px rgba(0,0,0,.6);
+    padding:28px 24px;
+    animation:io-fadeUp .5s .3s both;
+  }
+  /* corner accents */
+  .io-login-panel::before,.io-login-panel::after{
+    content:'';position:absolute;width:10px;height:10px;
+    border-color:#00ffff;border-style:solid;
+  }
+  .io-login-panel::before{top:-1px;left:-1px;border-width:2px 0 0 2px;border-radius:8px 0 0 0}
+  .io-login-panel::after{bottom:-1px;right:-1px;border-width:0 2px 2px 0;border-radius:0 0 8px 0}
+  .io-lp-logo{
+    font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:600;
+    color:#00ffff;letter-spacing:-.5px;text-align:center;margin-bottom:4px;
+  }
+  .io-lp-logo span{color:#ff0055}
+  .io-lp-sub{
+    font-family:'IBM Plex Mono',monospace;font-size:9px;color:rgba(0,188,212,.5);
+    text-align:center;letter-spacing:2px;text-transform:uppercase;
+    margin-bottom:22px;padding-bottom:16px;
+    border-bottom:1px solid rgba(0,255,255,.1);
+  }
+  .io-lp-label{
+    font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;
+    color:rgba(0,188,212,.7);text-transform:uppercase;letter-spacing:.8px;
+    margin-bottom:5px;display:block;
+  }
+  .io-lp-input{
+    width:100%;background:rgba(3,3,8,.8);border:1px solid rgba(0,255,255,.2);
+    border-radius:5px;color:#d0f8ff;font-family:'IBM Plex Mono',monospace;
+    font-size:13px;padding:9px 12px;outline:none;
+    transition:border-color .2s,box-shadow .2s;margin-bottom:12px;
+    -webkit-text-fill-color:#d0f8ff;
+  }
+  .io-lp-input:focus{
+    border-color:#00ffff;box-shadow:0 0 0 2px rgba(0,255,255,.14);
+  }
+  .io-lp-input::placeholder{color:rgba(0,188,212,.3);-webkit-text-fill-color:rgba(0,188,212,.3)}
+  .io-lp-btn{
+    width:100%;padding:10px;margin-top:4px;
+    background:rgba(0,255,255,.1);border:1px solid #00ffff;
+    border-radius:5px;color:#00ffff;
+    font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;
+    cursor:pointer;letter-spacing:1px;
+    transition:all .2s;position:relative;overflow:hidden;
+  }
+  .io-lp-btn:hover:not(:disabled){
+    background:rgba(0,255,255,.18);box-shadow:0 0 20px rgba(0,255,255,.3);
+  }
+  .io-lp-btn:disabled{opacity:.5;cursor:not-allowed}
+  .io-lp-msg{
+    min-height:18px;margin-top:8px;
+    font-family:'IBM Plex Mono',monospace;font-size:10px;
+    text-align:center;line-height:1.4;
+  }
+  .io-lp-msg.err{color:#ff0055}
+  .io-lp-msg.ok{color:#00ff88}
+  .io-lp-msg.info{color:rgba(0,188,212,.6)}
+  .io-lp-skip{
+    display:block;text-align:center;margin-top:14px;
+    font-family:'IBM Plex Mono',monospace;font-size:10px;
+    color:rgba(0,188,212,.4);cursor:pointer;letter-spacing:.5px;
+    border:none;background:none;width:100%;padding:4px 0;
+    transition:color .2s;
+  }
+  .io-lp-skip:hover{color:rgba(0,188,212,.8)}
+  /* welcome state */
+  .io-lp-welcome{display:none;text-align:center;padding:8px 0}
+  .io-lp-welcome .wlc-icon{font-size:28px;margin-bottom:8px}
+  .io-lp-welcome .wlc-email{
+    font-family:'IBM Plex Mono',monospace;font-size:11px;color:#00ff88;
+    margin-bottom:4px;word-break:break-all;
+  }
+  .io-lp-welcome .wlc-txt{
+    font-family:'IBM Plex Mono',monospace;font-size:10px;color:rgba(0,188,212,.6);
+    margin-bottom:16px;
+  }
+  /* on mobile, collapse login-side to bottom */
+  @media(max-width:700px){
+    .io-body{flex-direction:column}
+    .io-login-side{
+      width:100%;border-left:none;border-top:1px solid rgba(0,255,255,.15);
+      padding:16px;
+    }
+    .io-login-panel{padding:16px;}
+    .io-tabs{display:none}
+  }
+
   </style>
+  <!-- GSAP animation library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 </head>
-<body>
+<body class="cyber">
   <div class="app">
     <!-- TOPBAR -->
     <div class="topbar">
-      <div class="brand">
-        <img src="./logo.png" alt="Mapactive logo" />
-        <span>IT<span>/</span>Asset</span>
-      </div>
+      <div class="brand">IT<span>/</span>Asset</div>
       <div style="width:1px;height:20px;background:var(--border)"></div>
       <div style="font-size:12px;color:var(--muted)">Mapactive VN</div>
       <div class="topbar-search">
@@ -231,6 +807,10 @@
       </div>
       <div id="authArea" class="auth-pill">
         <span class="auth-email" id="authEmail" style="display:none"></span>
+        <button class="btn-theme" id="btnCyber" onclick="toggleCyber()" title="Cyberpunk mode">⚡ Cyber</button>
+        <button class="btn-theme" id="btnSakura" onclick="toggleSakura()" title="Hoa anh đào">🌸 Sakura</button>
+        <button class="btn-theme" id="btnAutumn" onclick="toggleAutumn()" title="Mùa thu">🍂 Autumn</button>
+        <button class="btn-theme" id="btnExcel" onclick="toggleExcel()" title="Excel Style">📊 Excel</button>
         <button class="btn-secondary" id="btnOpenAuth">Đăng nhập</button>
         <button class="btn-secondary" id="btnSignOut" style="display:none">Đăng xuất</button>
       </div>
@@ -260,13 +840,6 @@
       </div>
       <div class="nav-item" data-page="warehouses" id="nav-warehouses">
         <span class="nav-icon">🏭</span> Kho <span class="nav-count" id="cnt-warehouses">0</span>
-      </div>
-
-      <div style="margin-top:auto;padding:12px 16px;border-top:1px solid var(--border)">
-        <div style="font-size:11px;color:var(--dim)">Phím tắt</div>
-        <div style="font-size:11px;color:var(--dim);margin-top:4px"><kbd style="background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:10px">N</kbd> Thêm giao dịch</div>
-        <div style="font-size:11px;color:var(--dim);margin-top:2px"><kbd style="background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:10px">Esc</kbd> Đóng modal</div>
-
       </div>
     </div>
 
@@ -350,8 +923,10 @@
             <input type="date" class="field-input" id="fDate">
           </div>
           <div class="field-group">
-            <div class="field-label">Serial / S/N</div>
-            <input type="text" class="field-input" id="fSN" placeholder="VD: SN123456">
+            <div class="field-label">Serial / S/N <span id="fSNCount" style="font-size:10px;color:var(--dim);font-weight:400"></span></div>
+            <div id="fSNWrapper" style="display:flex;flex-direction:column;gap:6px">
+              <input type="text" class="field-input sn-input" placeholder="Serial 1" autocomplete="off">
+            </div>
           </div>
         </div>
         <div class="form-row full">
@@ -457,8 +1032,931 @@
   <!-- TOAST -->
   <div class="toast" id="toast"></div>
 
+  <!-- MODAL: Office -->
+  <div class="modal-overlay" id="officeModal">
+    <div class="modal" style="width:480px">
+      <div class="modal-header">
+        <div class="modal-title" id="officeModalTitle">＋ Thêm văn phòng</div>
+        <button class="modal-close" id="btnCloseOffice">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="field-group">
+            <div class="field-label">Mã văn phòng <span class="req">*</span></div>
+            <input type="text" class="field-input" id="ofCode" placeholder="VD: OFF-HCM">
+          </div>
+          <div class="field-group">
+            <div class="field-label">Tên văn phòng <span class="req">*</span></div>
+            <input type="text" class="field-input" id="ofName" placeholder="VD: Văn phòng HCM">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field-group">
+            <div class="field-label">Địa chỉ</div>
+            <input type="text" class="field-input" id="ofLocation" placeholder="VD: 123 Nguyễn Huệ, Q1">
+          </div>
+          <div class="field-group">
+            <div class="field-label">Người phụ trách</div>
+            <input type="text" class="field-input" id="ofIncharge" placeholder="VD: Nguyễn Văn A">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="btnCancelOffice">Hủy</button>
+        <button class="btn-primary" id="btnSubmitOffice">Lưu văn phòng</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Warehouse -->
+  <div class="modal-overlay" id="warehouseModal">
+    <div class="modal" style="width:480px">
+      <div class="modal-header">
+        <div class="modal-title" id="warehouseModalTitle">＋ Thêm kho</div>
+        <button class="modal-close" id="btnCloseWarehouse">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="field-group">
+            <div class="field-label">Mã kho <span class="req">*</span></div>
+            <input type="text" class="field-input" id="whCode" placeholder="VD: WH-SGN">
+          </div>
+          <div class="field-group">
+            <div class="field-label">Tên kho <span class="req">*</span></div>
+            <input type="text" class="field-input" id="whName" placeholder="VD: Kho Sài Gòn">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field-group">
+            <div class="field-label">Địa chỉ</div>
+            <input type="text" class="field-input" id="whLocation" placeholder="VD: KCN Tân Bình">
+          </div>
+          <div class="field-group">
+            <div class="field-label">Người phụ trách</div>
+            <input type="text" class="field-input" id="whIncharge" placeholder="VD: Trần Văn B">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="btnCancelWarehouse">Hủy</button>
+        <button class="btn-primary" id="btnSubmitWarehouse">Lưu kho</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Store Edit -->
+  <div class="modal-overlay" id="storeModal">
+    <div class="modal" style="width:600px">
+      <div class="modal-header">
+        <div class="modal-title" id="storeModalTitle">✎ Chỉnh sửa cửa hàng</div>
+        <button class="modal-close" id="btnCloseStore">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="field-group">
+            <div class="field-label">Store code <span class="req">*</span></div>
+            <input type="text" class="field-input" id="stCode" placeholder="VD: VN05">
+          </div>
+          <div class="field-group">
+            <div class="field-label">Store name <span class="req">*</span></div>
+            <input type="text" class="field-input" id="stName" placeholder="VD: Converse Crescent mall">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field-group">
+            <div class="field-label">Brand</div>
+            <input type="text" class="field-input" id="stBrand" placeholder="VD: CONVERSE">
+          </div>
+          <div class="field-group">
+            <div class="field-label">Brand code</div>
+            <input type="text" class="field-input" id="stBrand2" placeholder="VD: CON">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field-group">
+            <div class="field-label">Type</div>
+            <input type="text" class="field-input" id="stType" placeholder="VD: Mall">
+          </div>
+          <div class="field-group">
+            <div class="field-label">Type 2</div>
+            <input type="text" class="field-input" id="stType2" placeholder="VD: Independence Store">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field-group">
+            <div class="field-label">Incharge</div>
+            <input type="text" class="field-input" id="stIncharge" placeholder="Tên người phụ trách">
+          </div>
+          <div class="field-group">
+            <div class="field-label">Chức vụ</div>
+            <input type="text" class="field-input" id="stPosition" placeholder="VD: Supervisor">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field-group">
+            <div class="field-label">Phone</div>
+            <input type="text" class="field-input" id="stPhone" placeholder="0901234567">
+          </div>
+          <div class="field-group">
+            <div class="field-label">Email</div>
+            <input type="text" class="field-input" id="stEmail" placeholder="store@example.com">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field-group">
+            <div class="field-label">AM (Area Manager)</div>
+            <input type="text" class="field-input" id="stAM" placeholder="VD: VO LAM MINH DAT">
+          </div>
+          <div class="field-group">
+            <div class="field-label">Open date</div>
+            <input type="text" class="field-input" id="stOpenDate" placeholder="VD: 07/01/2022">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field-group">
+            <div class="field-label">TotalArea (m²)</div>
+            <input type="number" class="field-input" id="stTotalArea" placeholder="90.4">
+          </div>
+          <div class="field-group">
+            <div class="field-label">SellArea (m²)</div>
+            <input type="number" class="field-input" id="stSellArea" placeholder="71.4">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field-group" style="flex:1">
+            <div class="field-label">Region</div>
+            <input type="text" class="field-input" id="stRegion" placeholder="VN">
+          </div>
+          <div class="field-group" style="flex:1">
+            <div class="field-label">Cost Center</div>
+            <input type="text" class="field-input" id="stCostCenter" placeholder="VD: VTVVN05">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="field-group" style="flex:1">
+            <div class="field-label">Địa chỉ</div>
+            <input type="text" class="field-input" id="stAddress" placeholder="Địa chỉ đầy đủ">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="btnCancelStore">Hủy</button>
+        <button class="btn-primary" id="btnSubmitStore">Cập nhật</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════
+       INTRO OVERLAY
+  ══════════════════════════════════════════ -->
+  <div id="introOverlay">
+    <canvas id="ioParticles"></canvas>
+    <div class="io-topbar">
+      <div class="io-brand">IT<span>/</span>Asset</div>
+      <div class="io-tagline">// Mapactive VN — Asset Management System v2.0</div>
+    </div>
+
+    <div class="io-body">
+    <div class="io-scene-area">
+    <div class="io-stage" id="ioStage">
+      <div class="io-corner tl"></div><div class="io-corner tr"></div>
+      <div class="io-corner bl"></div><div class="io-corner br"></div>
+      <div class="io-hud-tl" id="ioHudTL"></div>
+      <div class="io-hud-tr" id="ioHudTR">VER: 2.0.1<br>ENV: PROD<br>AUTH: PENDING</div>
+
+      <!-- SCENE: CAR WAITING -->
+      <div class="io-scene active" id="ios-0">
+        <div class="io-car-scene">
+          <!-- VIDEO BACKGROUND (Replaces SVG scene) -->
+          <div class="io-video-bg" style="position:absolute;top:0;left:0;width:100%;height:100%;z-index:0;overflow:hidden">
+            <video id="ioIntroVideo" src="video/parked.mp4" autoplay muted loop style="width:100%;height:100%;object-fit:cover"></video>
+          </div>
+          
+          <!-- Rain canvas kept (optional) -->
+          <canvas id="ioRain" style="position:absolute;top:0;left:0;width:100%;height:100%;mix-blend-mode:screen;pointer-events:none;opacity:0.3"></canvas>
+
+          <!-- SVG Elements hidden -->
+          <div style="display:none">
+            <div class="io-horizon"></div>
+            <div class="io-city"></div>
+            <div class="io-road-surface"></div>
+            <div id="ioCar"></div>
+            <div id="ioWaitPerson"></div>
+          </div>
+          
+          <!-- status label -->
+          <div class="io-car-status" id="ioCarStatus">AWAITING AUTHENTICATION...</div>
+        </div>
+      </div>
+    </div><!-- /io-stage -->
+    </div><!-- /io-scene-area -->
+
+    <!-- LOGIN SIDE PANEL -->
+    <div class="io-login-side">
+      <div class="io-login-panel" id="ioLoginPanel">
+        <div class="io-lp-logo">IT<span>/</span>Asset</div>
+        <div class="io-lp-sub">Asset Management System</div>
+
+        <!-- Sign-in form -->
+        <div id="ioLoginForm">
+          <label class="io-lp-label">Email</label>
+          <input class="io-lp-input" id="ioAuthEmail" type="email" placeholder="you@company.com" autocomplete="username" spellcheck="false">
+          <label class="io-lp-label">Password</label>
+          <input class="io-lp-input" id="ioAuthPass" type="password" placeholder="••••••••" autocomplete="current-password">
+          <button class="io-lp-btn" id="ioAuthBtn" onclick="ioDoSignIn()">Đăng nhập →</button>
+          <div class="io-lp-msg info" id="ioAuthMsg">Đăng nhập để truy cập đầy đủ tính năng</div>
+        </div>
+
+        <!-- Welcome state (shown when already logged in) -->
+        <div class="io-lp-welcome" id="ioWelcome">
+          <div class="wlc-icon">✓</div>
+          <div class="wlc-email" id="ioWelcomeEmail"></div>
+          <div class="wlc-txt">Đã đăng nhập thành công</div>
+          <button class="io-lp-btn" onclick="dismissIntro()">Vào hệ thống →</button>
+          <button class="io-lp-skip" onclick="ioDoSignOut()">Đăng xuất</button>
+        </div>
+      </div>
+    </div><!-- /io-login-side -->
+    </div><!-- /io-body -->
+  </div><!-- /introOverlay -->
+
   <!-- FLOATING ADD BUTTON -->
   <button class="fab" id="fabAddTx" title="Thêm giao dịch (phím N)">＋</button>
+
+  <!-- CYBER CANVAS -->
+  <canvas id="cyberCanvas"></canvas>
+  <!-- SAKURA CANVAS -->
+  <canvas id="sakuraCanvas"></canvas>
+  <!-- AUTUMN CANVAS -->
+  <canvas id="autumnCanvas"></canvas>
+  <!-- EXCEL CANVAS -->
+
+
+
+
+  <script>
+    // ── CHERRY BLOSSOM (SAKURA) ───────────────────────────
+    let _sakuraRaf = null;
+    const PETAL_COLORS = ['#ffb7c5','#ffc0cb','#ff91a4','#fff0f5','#ffd1dc','#ffaec9'];
+    let _petals = [];
+
+    function _makePetal(W, H, fromTop) {
+      return {
+        x: Math.random() * W,
+        y: fromTop ? -20 : Math.random() * H,
+        r: 3 + Math.random() * 5,
+        vx: (Math.random() - 0.5) * 0.8,
+        vy: 0.6 + Math.random() * 1.2,
+        angle: Math.random() * Math.PI * 2,
+        va: (Math.random() - 0.5) * 0.04,
+        sway: Math.random() * Math.PI * 2,
+        swayS: 0.01 + Math.random() * 0.02,
+        col: PETAL_COLORS[Math.floor(Math.random() * PETAL_COLORS.length)],
+        alpha: 0.55 + Math.random() * 0.35,
+      };
+    }
+
+    function _initSakura() {
+      const canvas = document.getElementById('sakuraCanvas');
+      const ctx = canvas.getContext('2d');
+      _petals = [];
+      function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        _petals = [];
+        const N = Math.floor((canvas.width * canvas.height) / 12000);
+        for (let i = 0; i < N; i++) _petals.push(_makePetal(canvas.width, canvas.height, false));
+      }
+      resize();
+      window.addEventListener('resize', resize);
+      function loop() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (_petals.length < Math.floor((canvas.width * canvas.height) / 10000)) {
+          if (Math.random() < 0.3) _petals.push(_makePetal(canvas.width, canvas.height, true));
+        }
+        for (let i = _petals.length - 1; i >= 0; i--) {
+          const p = _petals[i];
+          p.sway += p.swayS;
+          p.x += p.vx + Math.sin(p.sway) * 0.6;
+          p.y += p.vy;
+          p.angle += p.va;
+          if (p.y > canvas.height + 20) { _petals.splice(i, 1); continue; }
+          ctx.save();
+          ctx.globalAlpha = p.alpha;
+          ctx.translate(p.x, p.y);
+          ctx.rotate(p.angle);
+          ctx.beginPath();
+          ctx.ellipse(0, 0, p.r, p.r * 0.6, 0, 0, Math.PI * 2);
+          ctx.fillStyle = p.col;
+          ctx.shadowColor = p.col;
+          ctx.shadowBlur = 5;
+          ctx.fill();
+          ctx.restore();
+        }
+        _sakuraRaf = requestAnimationFrame(loop);
+      }
+      loop();
+    }
+
+    function _stopSakura() {
+      if (_sakuraRaf) { cancelAnimationFrame(_sakuraRaf); _sakuraRaf = null; }
+      const canvas = document.getElementById('sakuraCanvas');
+      if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+      _petals = [];
+    }
+
+    // ── AUTUMN ANIMATION (maple leaves from right) ────────
+    let _autumnRaf = null;
+    let _leaves = [], _aFrame = 0;
+    const LEAF_COLS = ['#f4916a','#e8d06a','#e87a5a','#f0b050','#e8a898','#d4733a','#f2c46a','#c8604a'];
+
+    function _makeLeaf(W, H, fromRight) {
+      const col = LEAF_COLS[Math.floor(Math.random() * LEAF_COLS.length)];
+      const size = 10 + Math.random() * 18;
+      return {
+        x: fromRight ? W + 30 : W * (0.5 + Math.random() * 0.6),
+        y: fromRight ? Math.random() * H * 0.85 : Math.random() * H,
+        size,
+        vx: -(0.5 + Math.random() * 1.2),
+        vy: 0.3 + Math.random() * 0.8,
+        angle: Math.random() * Math.PI * 2,
+        va: (Math.random() - 0.5) * 0.04,
+        sway: Math.random() * Math.PI * 2,
+        swayS: 0.01 + Math.random() * 0.018,
+        col,
+        alpha: 0.6 + Math.random() * 0.35,
+      };
+    }
+
+    function _drawMapleLeaf(ctx, size, col) {
+      // 5-lobe maple leaf using bezier paths
+      const s = size;
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      // stem
+      ctx.moveTo(0, s * 0.55);
+      ctx.lineTo(0, s * 0.2);
+      // build lobes with bezier curves
+      ctx.moveTo(0, s * 0.18);
+      // right lobe bottom
+      ctx.bezierCurveTo(s*.12, s*.15, s*.22, s*.28, s*.38, s*.18);
+      // right lobe tip
+      ctx.bezierCurveTo(s*.52, s*.10, s*.50, s*-.04, s*.40, s*-.02);
+      // right notch
+      ctx.bezierCurveTo(s*.44, s*-.10, s*.38, s*-.20, s*.28, s*-.12);
+      // top-right lobe
+      ctx.bezierCurveTo(s*.32, s*-.24, s*.24, s*-.38, s*.14, s*-.34);
+      // top notch right
+      ctx.bezierCurveTo(s*.14, s*-.42, s*.08, s*-.46, s*.00, s*-.52);
+      // top-left lobe
+      ctx.bezierCurveTo(-s*.08, s*-.46, -s*.14, s*-.42, -s*.14, s*-.34);
+      // notch left
+      ctx.bezierCurveTo(-s*.24, s*-.38, -s*.32, s*-.24, -s*.28, s*-.12);
+      // left lobe tip
+      ctx.bezierCurveTo(-s*.38, s*-.20, -s*.44, s*-.10, -s*.40, s*-.02);
+      // left lobe
+      ctx.bezierCurveTo(-s*.50, s*-.04, -s*.52, s*.10, -s*.38, s*.18);
+      // back to center
+      ctx.bezierCurveTo(-s*.22, s*.28, -s*.12, s*.15, 0, s*.18);
+      ctx.closePath();
+      ctx.fill();
+      // stem line
+      ctx.beginPath();
+      ctx.moveTo(0, s*.18);
+      ctx.lineTo(0, s*.55);
+      ctx.strokeStyle = 'rgba(80,30,10,0.35)';
+      ctx.lineWidth = s * 0.06;
+      ctx.stroke();
+    }
+
+    function _initAutumn() {
+      const canvas = document.getElementById('autumnCanvas');
+      const ctx = canvas.getContext('2d');
+      _leaves = []; _aFrame = 0;
+      function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        _leaves = [];
+        const N = Math.floor(canvas.width / 80);
+        for (let i = 0; i < N; i++) _leaves.push(_makeLeaf(canvas.width, canvas.height, false));
+      }
+      resize();
+      window.addEventListener('resize', resize);
+      function loop() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // spawn from right
+        if (_leaves.length < Math.floor(canvas.width / 60)) {
+          if (Math.random() < 0.04) _leaves.push(_makeLeaf(canvas.width, canvas.height, true));
+        }
+        for (let i = _leaves.length - 1; i >= 0; i--) {
+          const l = _leaves[i];
+          l.sway += l.swayS;
+          l.x += l.vx + Math.sin(l.sway) * 0.4;
+          l.y += l.vy + Math.cos(l.sway * 0.7) * 0.3;
+          l.angle += l.va;
+          if (l.x < -40 || l.y > canvas.height + 40) { _leaves.splice(i, 1); continue; }
+          ctx.save();
+          ctx.globalAlpha = l.alpha;
+          ctx.translate(l.x, l.y);
+          ctx.rotate(l.angle);
+          ctx.shadowColor = l.col;
+          ctx.shadowBlur = 6;
+          _drawMapleLeaf(ctx, l.size, l.col);
+          ctx.restore();
+        }
+        _autumnRaf = requestAnimationFrame(loop);
+      }
+      loop();
+    }
+
+    function _stopAutumn() {
+      if (_autumnRaf) { cancelAnimationFrame(_autumnRaf); _autumnRaf = null; }
+      const canvas = document.getElementById('autumnCanvas');
+      if (canvas) canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+      _leaves = [];
+    }
+
+    // ── THEME SWITCH HELPERS ──────────────────────────
+    const _THEMES = ['cyber','sakura','autumn','excel'];
+    function _deactivateAll(except) {
+      _THEMES.forEach(t => {
+        document.body.classList.remove(t);
+        const c = document.getElementById(t+'Canvas');
+        if (c) c.classList.remove('active');
+      });
+      const btns = {
+        cyber:  {el:'btnCyber',  label:'⚡ Cyber'},
+        sakura: {el:'btnSakura', label:'🌸 Sakura'},
+        autumn: {el:'btnAutumn', label:'🍂 Autumn'},
+        excel:  {el:'btnExcel',  label:'📊 Excel'},
+      };
+      Object.entries(btns).forEach(([k,b])=>{
+        if (k === except) return;
+        const el=document.getElementById(b.el);
+        if(el){el.textContent=b.label;el.style.borderColor='';el.style.color='';}
+      });
+      setTimeout(()=>{
+        if(except!=='sakura') _stopSakura();
+        if(except!=='autumn') _stopAutumn();
+        if(except!=='cyber')  _stopCyber();
+        if(except!=='excel')  _stopExcel();
+      },700);
+    }
+
+    function _activateSakura() {
+      _deactivateAll('sakura');
+      const canvas = document.getElementById('sakuraCanvas');
+      const btn    = document.getElementById('btnSakura');
+      document.body.classList.add('sakura');
+      canvas.classList.add('active');
+      btn.textContent = '✕ Sakura'; btn.style.borderColor='#d63878'; btn.style.color='#d63878';
+      _initSakura();
+      localStorage.setItem('theme','sakura');
+    }
+    function _activateAutumn() {
+      _deactivateAll('autumn');
+      const canvas = document.getElementById('autumnCanvas');
+      const btn    = document.getElementById('btnAutumn');
+      document.body.classList.add('autumn');
+      canvas.classList.add('active');
+      btn.textContent = '✕ Autumn'; btn.style.borderColor='#c8702a'; btn.style.color='#c8702a';
+      _initAutumn();
+      localStorage.setItem('theme','autumn');
+    }
+
+    function toggleSakura() {
+      if (document.body.classList.contains('sakura')) _activateCyber();
+      else _activateSakura();
+    }
+    function toggleAutumn() {
+      if (document.body.classList.contains('autumn')) _activateCyber();
+      else _activateAutumn();
+    }
+
+    // ── EXCEL THEME LOGIC ─────────────────────────────
+    function _stopExcel() {}
+
+    function _activateExcel() {
+      _deactivateAll('excel');
+      const btn = document.getElementById('btnExcel');
+      document.body.classList.add('excel');
+      if(btn){btn.textContent='✕ Excel';btn.style.borderColor='#1d6f42';btn.style.color='#1d6f42';}
+      localStorage.setItem('theme','excel');
+    }
+
+    function toggleExcel() {
+      if (document.body.classList.contains('excel')) _activateCyber();
+      else _activateExcel();
+    }
+
+
+    // ── CYBERPUNK PARTICLE NETWORK ────────────────────────
+    let _cyberRaf = null;
+    let _nodes = [], _beams = [], _bursts = [], _cFrame2 = 0;
+    const _C_CYAN='#00ffff', _C_MAG='#ff0055', _C_YEL='#ffe600';
+
+    function _hexStr(n){return Math.floor(Math.random()*(1<<(n*4))).toString(16).toUpperCase().padStart(n,'0');}
+
+    function _makeNode(W,H){
+      const cols=[_C_CYAN,_C_CYAN,_C_CYAN,_C_MAG,_C_YEL];
+      return {
+        x:Math.random()*W, y:Math.random()*H,
+        vx:(Math.random()-.5)*.35, vy:(Math.random()-.5)*.35,
+        r:2+Math.random()*3,
+        pulse:Math.random()*Math.PI*2, pulseS:.015+Math.random()*.025,
+        col:cols[Math.floor(Math.random()*cols.length)],
+        active:0,
+      };
+    }
+
+    function _initCyber(){
+      const canvas=document.getElementById('cyberCanvas');
+      const ctx=canvas.getContext('2d');
+      _nodes=[]; _beams=[]; _bursts=[]; _cFrame2=0;
+
+      function resize(){
+        canvas.width=window.innerWidth;
+        canvas.height=window.innerHeight;
+        _nodes=[];
+        const N=Math.floor((canvas.width*canvas.height)/14000);
+        for(let i=0;i<N;i++) _nodes.push(_makeNode(canvas.width,canvas.height));
+      }
+      resize();
+      window.addEventListener('resize',resize);
+
+      const LINK_DIST=160, LINK_DIST2=LINK_DIST*LINK_DIST;
+
+      function loop(){
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        _cFrame2++;
+
+        // ― random beam sweep every ~180 frames ―
+        if(_cFrame2%180===0){
+          const col=Math.random()<0.6?_C_CYAN:(Math.random()<0.5?_C_MAG:_C_YEL);
+          _beams.push({y:Math.random()*canvas.height, life:1, decay:.016+Math.random()*.012,
+            thick:1+Math.random()*2, col});
+        }
+        // draw beams
+        for(const b of _beams){
+          const grad=ctx.createLinearGradient(0,0,canvas.width,0);
+          grad.addColorStop(0,'transparent');
+          grad.addColorStop(.15,b.col+Math.floor(b.life*200).toString(16).padStart(2,'0'));
+          grad.addColorStop(.85,b.col+Math.floor(b.life*200).toString(16).padStart(2,'0'));
+          grad.addColorStop(1,'transparent');
+          ctx.strokeStyle=grad; ctx.lineWidth=b.thick;
+          ctx.shadowColor=b.col; ctx.shadowBlur=18*b.life;
+          ctx.globalAlpha=b.life;
+          ctx.beginPath(); ctx.moveTo(0,b.y); ctx.lineTo(canvas.width,b.y); ctx.stroke();
+          b.life-=b.decay;
+        }
+        _beams=_beams.filter(b=>b.life>0);
+        ctx.globalAlpha=1; ctx.shadowBlur=0;
+
+        // ― activate random node to send a bolt ―
+        if(_cFrame2%45===0 && _nodes.length>1){
+          const src=_nodes[Math.floor(Math.random()*_nodes.length)];
+          src.active=14;
+          // find nearest
+          let best=null,bd=1e9;
+          for(const nd of _nodes){
+            if(nd===src) continue;
+            const dd=(nd.x-src.x)**2+(nd.y-src.y)**2;
+            if(dd<bd){bd=dd;best=nd;}
+          }
+          if(best){
+            const pts=[[src.x,src.y]];
+            let cx=src.x,cy=src.y;
+            const steps=5+Math.floor(Math.random()*4);
+            for(let s=0;s<steps;s++){
+              const t=(s+1)/(steps+1);
+              cx=src.x+(best.x-src.x)*t+(Math.random()-.5)*40;
+              cy=src.y+(best.y-src.y)*t+(Math.random()-.5)*40;
+              pts.push([cx,cy]);
+            }
+            pts.push([best.x,best.y]);
+            const col=Math.random()<0.5?_C_MAG:_C_YEL;
+            _bursts.push({pts,life:1,decay:.055+Math.random()*.04,col});
+          }
+        }
+        // draw bursts (lightning)
+        for(const b of _bursts){
+          ctx.globalAlpha=b.life*.9;
+          ctx.strokeStyle=b.col; ctx.lineWidth=1+b.life;
+          ctx.shadowColor=b.col; ctx.shadowBlur=20*b.life;
+          ctx.beginPath();
+          ctx.moveTo(b.pts[0][0],b.pts[0][1]);
+          for(let i=1;i<b.pts.length;i++) ctx.lineTo(b.pts[i][0],b.pts[i][1]);
+          ctx.stroke();
+          b.life-=b.decay;
+        }
+        _bursts=_bursts.filter(b=>b.life>0);
+        ctx.globalAlpha=1; ctx.shadowBlur=0;
+
+        // ― nodes + links ―
+        for(let i=0;i<_nodes.length;i++){
+          const a=_nodes[i];
+          a.x+=a.vx; a.y+=a.vy;
+          if(a.x<0)a.x=canvas.width; if(a.x>canvas.width)a.x=0;
+          if(a.y<0)a.y=canvas.height; if(a.y>canvas.height)a.y=0;
+          a.pulse+=a.pulseS;
+          if(a.active>0)a.active--;
+
+          // links to nearby nodes
+          for(let j=i+1;j<_nodes.length;j++){
+            const b=_nodes[j];
+            const dx=b.x-a.x, dy=b.y-a.y, d2=dx*dx+dy*dy;
+            if(d2>LINK_DIST2) continue;
+            const alpha=(.9-d2/LINK_DIST2)*.35;
+            const col=(a.active>0||b.active>0)?_C_CYAN:'#00ffff';
+            ctx.strokeStyle=col; ctx.lineWidth=.7;
+            ctx.shadowColor=col; ctx.shadowBlur=(a.active>0||b.active>0)?8:0;
+            ctx.globalAlpha=alpha;
+            ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+          }
+          ctx.globalAlpha=1; ctx.shadowBlur=0;
+
+          // draw node
+          const pr=a.r*(1+.4*Math.sin(a.pulse));
+          const glowR=(a.active>0?pr*5:pr*3);
+          // outer glow
+          const g=ctx.createRadialGradient(a.x,a.y,0,a.x,a.y,glowR);
+          g.addColorStop(0,a.col+(a.active>0?'cc':'66'));
+          g.addColorStop(1,'transparent');
+          ctx.fillStyle=g; ctx.globalAlpha=a.active>0?0.8:0.45;
+          ctx.beginPath(); ctx.arc(a.x,a.y,glowR,0,Math.PI*2); ctx.fill();
+          // bright core
+          ctx.shadowColor=a.col; ctx.shadowBlur=a.active>0?20:8;
+          ctx.fillStyle=a.active>0?'#fff':a.col;
+          ctx.globalAlpha=1;
+          ctx.beginPath(); ctx.arc(a.x,a.y,pr,0,Math.PI*2); ctx.fill();
+          ctx.shadowBlur=0;
+        }
+
+        // ― HUD: bottom status bar ―
+        ctx.globalAlpha=.4; ctx.fillStyle=_C_CYAN;
+        ctx.font='9px \'IBM Plex Mono\',monospace'; ctx.textBaseline='bottom';
+        ctx.fillText('NODE:'+_nodes.length+'  LINK:OK  MEM:'+Math.floor(30+Math.random()*60)+'%  T:'+new Date().toTimeString().slice(0,8),24,canvas.height-14);
+        ctx.globalAlpha=1;
+
+        _cyberRaf=requestAnimationFrame(loop);
+      }
+      loop();
+    }
+
+    function _stopCyber() {
+      if (_cyberRaf) { cancelAnimationFrame(_cyberRaf); _cyberRaf = null; }
+      const canvas = document.getElementById('cyberCanvas');
+      canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function _activateCyber() {
+      _deactivateAll('cyber');
+      const canvas = document.getElementById('cyberCanvas');
+      const btn    = document.getElementById('btnCyber');
+      document.body.classList.add('cyber');
+      canvas.classList.add('active');
+      btn.textContent = '✕ Cyber'; btn.style.borderColor='#00ffff'; btn.style.color='#00ffff';
+      _initCyber();
+      localStorage.setItem('theme','cyber');
+    }
+    function toggleCyber() {
+      if (!document.body.classList.contains('cyber')) _activateCyber();
+    }
+
+    // Restore saved theme on load (cyber = default)
+    (function(){
+      const saved = localStorage.getItem('theme');
+      document.body.classList.remove('cyber','sakura','autumn');
+      requestAnimationFrame(() => {
+        if (saved === 'sakura') _activateSakura();
+        else if (saved === 'autumn') _activateAutumn();
+        else _activateCyber();
+      });
+    })();
+  </script>
+
+  <script>
+  /* ══════════════════════════════════════════
+     INTRO OVERLAY LOGIC
+  ══════════════════════════════════════════ */
+  (function(){
+    if(sessionStorage.getItem('introDone')){ document.getElementById('introOverlay').classList.add('hidden'); return; }
+
+    // ── Particles ──
+    const pc=document.getElementById('ioParticles');
+    const pctx=pc.getContext('2d');
+    let pp=[];
+    function resizeP(){pc.width=window.innerWidth;pc.height=window.innerHeight;}
+    resizeP();window.addEventListener('resize',resizeP);
+    for(let i=0;i<55;i++) pp.push({x:Math.random()*window.innerWidth,y:Math.random()*window.innerHeight,vx:(Math.random()-.5)*.2,vy:(Math.random()-.5)*.2,r:Math.random()*1.4+.4,a:Math.random()*.35+.08});
+    let pRaf;
+    (function pLoop(){
+      pctx.clearRect(0,0,pc.width,pc.height);
+      pp.forEach(p=>{p.x+=p.vx;p.y+=p.vy;if(p.x<0)p.x=pc.width;if(p.x>pc.width)p.x=0;if(p.y<0)p.y=pc.height;if(p.y>pc.height)p.y=0;pctx.beginPath();pctx.arc(p.x,p.y,p.r,0,Math.PI*2);pctx.fillStyle='rgba(0,255,255,'+p.a+')';pctx.fill();});
+      pRaf=requestAnimationFrame(pLoop);
+    })();
+
+    // ── HUD clock ──
+    const hudTL=document.getElementById('ioHudTL');
+    function updHUD(){const t=new Date().toTimeString().slice(0,8);if(hudTL)hudTL.innerHTML='SYS: ONLINE<br>MODE: CAR_WAIT<br>T: '+t;}
+    let hudInt=setInterval(updHUD,1000);updHUD();
+
+    // ── Auth bridge ──
+    window.ioDoSignIn=function(){
+      const email=document.getElementById('ioAuthEmail').value.trim();
+      const pass=document.getElementById('ioAuthPass').value;
+      const msg=document.getElementById('ioAuthMsg');
+      const btn=document.getElementById('ioAuthBtn');
+      const status=document.getElementById('ioCarStatus');
+      if(!email||!pass){msg.className='io-lp-msg err';msg.textContent='Vui lòng nhập email và mật khẩu';return;}
+      const realEmail=document.getElementById('authEmailInput');
+      const realPass=document.getElementById('authPassInput');
+      if(!realEmail||!realPass){msg.className='io-lp-msg err';msg.textContent='App chưa tải xong, thử lại sau';return;}
+      realEmail.value=email; realPass.value=pass;
+      btn.disabled=true; btn.textContent='Đang đăng nhập...';
+      msg.className='io-lp-msg info'; msg.textContent='Đang xác thực...';
+      if(status){status.textContent='AUTHENTICATING...';status.style.color='#ffe600';status.style.borderColor='rgba(255,230,0,.45)';status.style.animation='none';status.style.opacity='1';}
+      document.getElementById('btnAuthSignIn').click();
+      let attempts=0;
+      const watchAuth=setInterval(function(){
+        attempts++;
+        const soBtn=document.getElementById('btnSignOut');
+        if(soBtn&&soBtn.style.display!=='none'&&soBtn.style.display!==''){
+          clearInterval(watchAuth);
+          showWelcome(document.getElementById('authEmail').textContent);
+        }
+        if(attempts>50){
+          clearInterval(watchAuth);
+          btn.disabled=false; btn.textContent='Đăng nhập →';
+          msg.className='io-lp-msg err'; msg.textContent='Email hoặc mật khẩu không đúng';
+          if(status){status.textContent='ACCESS DENIED';status.style.color='#ff0055';status.style.borderColor='rgba(255,0,85,.45)';}
+          setTimeout(()=>{if(status){status.textContent='AWAITING AUTHENTICATION...';status.style.color='';status.style.borderColor='';status.style.animation='';}},2200);
+        }
+      },100);
+    };
+
+    window.ioDoSignOut=function(){
+      document.getElementById('btnSignOut').click();
+      document.getElementById('ioWelcome').style.display='none';
+      document.getElementById('ioLoginForm').style.display='';
+      document.getElementById('ioAuthEmail').value='';
+      document.getElementById('ioAuthPass').value='';
+      const msg=document.getElementById('ioAuthMsg');
+      msg.className='io-lp-msg info'; msg.textContent='Đăng nhập để truy cập đầy đủ tính năng';
+      const btn=document.getElementById('ioAuthBtn');
+      btn.disabled=false; btn.textContent='Đăng nhập →';
+      const status=document.getElementById('ioCarStatus');
+      if(status){status.textContent='AWAITING AUTHENTICATION...';status.style.color='';status.style.borderColor='';status.style.animation='';}
+    };
+
+    function showWelcome(email){
+      const msg=document.getElementById('ioAuthMsg');
+      msg.className='io-lp-msg ok'; msg.textContent='Xác thực thành công!';
+      document.getElementById('ioLoginForm').style.display='none';
+      document.getElementById('ioWelcomeEmail').textContent=email||'';
+      document.getElementById('ioWelcome').style.display='block';
+      startDriveAway();
+    }
+
+    // ── Car drive-away animation on login success (VIDEO) ──
+    window.startDriveAway=function(){
+      const status=document.getElementById('ioCarStatus');
+      const video=document.getElementById('ioIntroVideo');
+      
+      if(status){status.textContent='ACCESS GRANTED';status.style.color='#00ff88';status.style.borderColor='rgba(0,255,136,.5)';status.style.animation='none';status.style.opacity='1';}
+
+      if(typeof gsap!=='undefined'){
+        if(window._idleTween) window._idleTween.kill();
+      }
+      
+      if(video){
+        // Switch to drive-away video
+        video.loop=false;
+        video.src='video/drive-away.mp4';
+        video.muted=false; // User interacted (login click), so audio is allowed
+        video.play().catch(e=>{
+           console.warn('Video playback failed, falling back to muted', e);
+           video.muted=true;
+           video.play().catch(e2=>console.warn('Still failed',e2));
+        });
+        video.onended=function(){ dismissIntro(); };
+        // If video fails to load or error, dismiss after timeout?
+        video.onerror=function(){ dismissIntro(); };
+      } else {
+        // Fallback if video element missing
+        setTimeout(dismissIntro,1200);
+      }
+    };
+
+    // ── Rain canvas ──
+    (function(){
+      const rc=document.getElementById('ioRain');
+      if(!rc)return;
+      const rx=rc.getContext('2d');
+      let drops=[];
+      function resizeR(){rc.width=rc.parentElement.offsetWidth||700;rc.height=rc.parentElement.offsetHeight||450;}
+      resizeR();window.addEventListener('resize',resizeR);
+      for(let i=0;i<90;i++)drops.push({x:Math.random()*750,y:Math.random()*460,vy:9+Math.random()*9,len:9+Math.random()*14,a:.1+Math.random()*.22});
+      (function rLoop(){
+        rx.clearRect(0,0,rc.width,rc.height);
+        drops.forEach(d=>{d.y+=d.vy;if(d.y>rc.height+20){d.y=-20;d.x=Math.random()*rc.width;}
+          rx.beginPath();rx.moveTo(d.x,d.y);rx.lineTo(d.x-d.vy*.12,d.y-d.len);
+          rx.strokeStyle='rgba(0,220,255,'+d.a+')';rx.lineWidth=.65;rx.stroke();});
+        requestAnimationFrame(rLoop);
+      })();
+    })();
+
+    // ── GSAP idle: car float + wheel slow-spin ──
+    var _idleTween,_wfTween,_wrTween;
+    if(typeof gsap!=='undefined'){
+      _idleTween=gsap.to('#ioCar',{y:-6,repeat:-1,yoyo:true,duration:2.2,ease:'sine.inOut'});
+      _wfTween=gsap.to('#io-wf',{rotation:360,repeat:-1,duration:4,ease:'none',svgOrigin:'310 107'});
+      _wrTween=gsap.to('#io-wr',{rotation:360,repeat:-1,duration:4,ease:'none',svgOrigin:'90 107'});
+    }
+
+    // Already logged in on load
+    const watchInitAuth=setInterval(function(){
+      const soBtn=document.getElementById('btnSignOut');
+      if(soBtn&&soBtn.style.display!=='none'&&soBtn.style.display!==''){
+        clearInterval(watchInitAuth);
+        const ov=document.getElementById('introOverlay');
+        if(!ov.classList.contains('hidden')) showWelcome(document.getElementById('authEmail').textContent||'');
+      }
+    },200);
+    setTimeout(()=>clearInterval(watchInitAuth),8000);
+
+    // Enter key handlers
+    document.getElementById('ioAuthPass').addEventListener('keydown',function(e){if(e.key==='Enter')ioDoSignIn();});
+    document.getElementById('ioAuthEmail').addEventListener('keydown',function(e){if(e.key==='Enter')document.getElementById('ioAuthPass').focus();});
+
+    // Dismiss
+    window.dismissIntro=function(){
+      clearInterval(hudInt);
+      cancelAnimationFrame(pRaf);
+      sessionStorage.setItem('introDone','1');
+      document.getElementById('introOverlay').classList.add('hidden');
+    };
+
+    window.showIntroScreen=function(){
+      sessionStorage.removeItem('introDone');
+      // Reset login panel
+      document.getElementById('ioWelcome').style.display='none';
+      document.getElementById('ioLoginForm').style.display='';
+      const emailInp=document.getElementById('ioAuthEmail');
+      const passInp=document.getElementById('ioAuthPass');
+      if(emailInp)emailInp.value='';
+      if(passInp)passInp.value='';
+      const msg=document.getElementById('ioAuthMsg');
+      if(msg){msg.className='io-lp-msg info';msg.textContent='Đăng nhập để truy cập đầy đủ tính năng';}
+      const btn=document.getElementById('ioAuthBtn');
+      if(btn){btn.disabled=false;btn.textContent='Đăng nhập →';}
+      const status=document.getElementById('ioCarStatus');
+      if(status){status.textContent='AWAITING AUTHENTICATION...';status.style.color='';status.style.borderColor='';status.style.animation='';}
+      
+      // Reset Video State (Video Mode)
+      const v = document.getElementById('ioIntroVideo');
+      if(v){
+        v.src='video/parked.mp4';
+        v.loop=true;
+        v.muted=true;
+        v.currentTime=0;
+        v.play().catch(e=>console.warn('Video reset error:',e));
+        v.onended=null;
+        v.onerror=null;
+      }
+
+      // Reset car & person (SVG Mode - legacy kept hidden)
+      if(typeof gsap!=='undefined'){
+        gsap.killTweensOf('#ioCar');
+        gsap.killTweensOf('#io-wf');
+        gsap.killTweensOf('#io-wr');
+        gsap.set('#ioCar',{x:0,y:0});
+        const person=document.getElementById('ioWaitPerson');
+        if(person)gsap.set(person,{x:0,opacity:1});
+        if(window._idleTween) window._idleTween.kill(); // Kill previous
+        // Don't restart SVG tweens if video exists, to save performance
+        if(!v) {
+           _idleTween=gsap.to('#ioCar',{y:-6,repeat:-1,yoyo:true,duration:2.2,ease:'sine.inOut'});
+           _wfTween=gsap.to('#io-wf',{rotation:360,repeat:-1,duration:4,ease:'none',svgOrigin:'310 107'});
+           _wrTween=gsap.to('#io-wr',{rotation:360,repeat:-1,duration:4,ease:'none',svgOrigin:'90 107'});
+        }
+      }
+      // Restart HUD clock
+      clearInterval(hudInt);
+      function _updHUD(){const t=new Date().toTimeString().slice(0,8);const h=document.getElementById('ioHudTL');if(h)h.innerHTML='SYS: ONLINE<br>MODE: CAR_WAIT<br>T: '+t;}
+      hudInt=setInterval(_updHUD,1000);_updHUD();
+      // Restart particles
+      cancelAnimationFrame(pRaf);
+      (function pLoop2(){
+        pctx.clearRect(0,0,pc.width,pc.height);
+        pp.forEach(p=>{p.x+=p.vx;p.y+=p.vy;if(p.x<0)p.x=pc.width;if(p.x>pc.width)p.x=0;if(p.y<0)p.y=pc.height;if(p.y>pc.height)p.y=0;pctx.beginPath();pctx.arc(p.x,p.y,p.r,0,Math.PI*2);pctx.fillStyle='rgba(0,255,255,'+p.a+')';pctx.fill();});
+        pRaf=requestAnimationFrame(pLoop2);
+      })();
+      // Show overlay
+      document.getElementById('introOverlay').classList.remove('hidden');
+    };
+  })();
+  </script>
 
   <script type="module" src="./js/app.js"></script>
 </body>

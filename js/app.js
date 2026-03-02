@@ -1,4 +1,4 @@
-import { firebaseConfig } from "./firebase-config.js";
+﻿import { firebaseConfig } from "./firebase-config.js";
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
 import {
@@ -17,6 +17,7 @@ import {
   writeBatch,
   serverTimestamp,
   deleteDoc,
+  updateDoc,
 } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
 // ── FIREBASE INIT ──────────────────────────────────────────
@@ -51,6 +52,14 @@ function safeTrim(v) {
 
 function keyOf(v) {
   return safeTrim(v).toLowerCase();
+}
+
+function matchAssigned(assigned, code, name) {
+  const a = keyOf(assigned);
+  if (!a) return false;
+  const c = keyOf(code);
+  const n = keyOf(name);
+  return (c && a.includes(c)) || (n && a.includes(n)) || (c && c.includes(a)) || (n && n.includes(a));
 }
 
 function toNumber(n, fallback = 0) {
@@ -186,11 +195,24 @@ function hl(text, q) {
 
 function statusBadge(st) {
   const s = (st || "").toLowerCase().trim();
-  if (s.includes("still use") || s.includes("new")) return `<span class="badge-status s-active">${st || "—"}</span>`;
+  if (s.includes("still use") || s.includes("new") || s === "active") return `<span class="badge-status s-active">Still use</span>`;
   if (s.includes("broken")) return `<span class="badge-status s-broken">${st}</span>`;
   if (s.includes("old")) return `<span class="badge-status s-old">${st}</span>`;
   if (s.includes("none") || s.includes("liquidation")) return `<span class="badge-status s-none">${st}</span>`;
   return st ? `<span class="badge-status s-old">${st}</span>` : '<span style="color:var(--dim)">—</span>';
+}
+
+// Clean serial: remove trailing annotation labels like (Scan), (Door: scan), etc.
+function cleanSN(s) {
+  return safeTrim(s).replace(/\s*\([^)]*\)\s*/g, "").trim();
+}
+
+// Normalize date display → DD/MM/YYYY
+function fmtDate(d) {
+  const s = safeTrim(d);
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
+  return s;
 }
 
 function render() {
@@ -265,7 +287,7 @@ function renderDashboard() {
                 <td class="ellipsis" style="max-width:160px">${safeTrim(t.Item)}</td>
                 <td><span class="badge-tx ${t.TxType === "in" ? "badge-in" : "badge-out"}">${t.TxType === "in" ? "↑ IN" : "↓ OUT"}</span></td>
                 <td class="mono">${toNumber(t.Quantity, 0)}</td>
-                <td class="mono" style="color:var(--muted);font-size:11px">${safeTrim(t.Date) || "—"}</td>
+                <td class="mono" style="color:var(--muted);font-size:11px">${fmtDate(safeTrim(t.Date)) || "—"}</td>
               </tr>
             `).join("")}
           </tbody>
@@ -313,7 +335,7 @@ function renderDashboard() {
 // ── TRANSACTIONS ───────────────────────────────────────────
 function renderTransactions() {
   const q = getSearch();
-  let list = TX
+  const list = TX
     .filter((t) => {
       if (txFilter === "in" && t.TxType !== "in") return false;
       if (txFilter === "out" && t.TxType !== "out") return false;
@@ -326,15 +348,31 @@ function renderTransactions() {
     })
     .sort((a, b) => (safeTrim(b.Date)).localeCompare(safeTrim(a.Date)));
 
-  const total = list.length;
+  // Group: same item + TxType + assigned → one merged row
+  const _grpMap = {};
+  list.forEach((t) => {
+    const key = [keyOf(safeTrim(t.Item)), t.TxType, keyOf(safeTrim(t.Assigned))].join("|");
+    if (!_grpMap[key]) _grpMap[key] = { key, item: safeTrim(t.Item), txType: t.TxType, assigned: safeTrim(t.Assigned), qty: 0, sns: [], rawTxs: [], status: t.Status, lastDate: "", desc: safeTrim(t.Description) || "" };
+    _grpMap[key].qty += toNumber(t.Quantity, 0);
+    _grpMap[key].rawTxs.push(t);
+    const _snv = t.SN;
+    if (Array.isArray(_snv)) _snv.forEach((s) => { const v = cleanSN(s); if (v) _grpMap[key].sns.push(v); });
+    else safeTrim(_snv).split(/[\n,]+/).forEach((s) => { const sv = cleanSN(s); if (sv) _grpMap[key].sns.push(sv); });
+    if (safeTrim(t.Date) > _grpMap[key].lastDate) _grpMap[key].lastDate = safeTrim(t.Date);
+    if (!_grpMap[key].desc && safeTrim(t.Description)) _grpMap[key].desc = safeTrim(t.Description);
+  });
+  const grouped = Object.values(_grpMap).sort((a, b) => b.lastDate.localeCompare(a.lastDate));
+
+  const total = grouped.length;
   const pages = Math.ceil(total / PAGE_SIZE) || 1;
   txPage = Math.max(1, Math.min(txPage, pages));
-  const paged = list.slice((txPage - 1) * PAGE_SIZE, txPage * PAGE_SIZE);
+  const paged = grouped.slice((txPage - 1) * PAGE_SIZE, txPage * PAGE_SIZE);
+  const _bs = "background:transparent;border:none;cursor:pointer;font-size:13px;padding:2px 5px;border-radius:3px;transition:color .15s";
 
   $("main").innerHTML = `
     <div class="page-header">
       <div class="page-title">Giao dịch thiết bị</div>
-      <div class="page-sub">${total} giao dịch • ${TX.filter((t) => t.TxType === "in").length} nhập, ${TX.filter((t) => t.TxType === "out").length} xuất</div>
+      <div class="page-sub">${total} mục (${TX.length} giao dịch) • ${TX.filter((t) => t.TxType === "in").length} nhập, ${TX.filter((t) => t.TxType === "out").length} xuất</div>
     </div>
 
     <div class="filters">
@@ -353,7 +391,6 @@ function renderTransactions() {
         <table>
           <thead>
             <tr>
-              <th>#</th>
               <th>Thiết bị</th>
               <th>Loại</th>
               <th>SL</th>
@@ -361,26 +398,55 @@ function renderTransactions() {
               <th>Trạng thái</th>
               <th>Serial / S/N</th>
               <th>Ngày</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
-            ${paged.length
-              ? paged.map((t) => `
-              <tr>
-                <td class="mono" style="color:var(--dim);font-size:11px">${t.No || ""}</td>
-                <td>
-                  <div style="font-weight:500">${hl(safeTrim(t.Item), q)}</div>
-                  ${t.Description ? `<div style="font-size:11px;color:var(--dim);margin-top:1px">${hl(safeTrim(t.Description), q)}</div>` : ""}
-                </td>
-                <td><span class="badge-tx ${t.TxType === "in" ? "badge-in" : "badge-out"}">${t.TxType === "in" ? "↑ IN" : "↓ OUT"}</span></td>
-                <td class="mono" style="font-size:15px;font-weight:600;color:${t.TxType === "in" ? "var(--in)" : "var(--out)"}">${toNumber(t.Quantity, 0)}</td>
-                <td style="font-size:12px;color:var(--muted)">${hl(safeTrim(t.Assigned), q) || "—"}</td>
-                <td>${statusBadge(t.Status)}</td>
-                <td class="mono" style="font-size:11px;color:var(--dim);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${safeTrim(t.SN)}">${hl(safeTrim(t.SN), q) || "—"}</td>
-                <td class="mono" style="font-size:11px;color:var(--muted);white-space:nowrap">${safeTrim(t.Date) || "—"}</td>
-              </tr>
-            `).join("")
-              : `<tr><td colspan="8"><div class="empty"><div class="e-icon">○</div>Không tìm thấy kết quả</div></td></tr>`}
+            ${paged.length ? paged.map((d) => {
+              const _isSingle = d.rawTxs.length === 1;
+              const _isExp = expandedTxGroups.has(d.key);
+              const _grpRow = `
+                <tr>
+                  <td>
+                    <div style="font-weight:500">${hl(d.item, q)}</div>
+                    ${d.desc ? `<div style="font-size:11px;color:var(--dim);margin-top:1px">${hl(d.desc, q)}</div>` : ""}
+                  </td>
+                  <td><span class="badge-tx ${d.txType === "in" ? "badge-in" : "badge-out"}">${d.txType === "in" ? "↑ IN" : "↓ OUT"}</span></td>
+                  <td class="mono" style="font-size:15px;font-weight:600;color:${d.txType === "in" ? "var(--in)" : "var(--out)"}">${d.qty}</td>
+                  <td style="font-size:12px;color:var(--muted)">${hl(d.assigned, q) || "—"}</td>
+                  <td>${statusBadge(d.status)}</td>
+                  <td class="mono" style="font-size:11px;color:var(--dim)">${d.sns.length ? d.sns.map((s) => `<div style="white-space:nowrap">${hl(s, q)}</div>`).join("") : "—"}</td>
+                  <td class="mono" style="font-size:11px;color:var(--muted);white-space:nowrap">${fmtDate(d.lastDate) || "—"}</td>
+                  <td style="white-space:nowrap">
+                    ${_isSingle
+                      ? `<button onclick="openTxEdit('${d.rawTxs[0].id}')" style="${_bs};color:var(--dim)" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--dim)'" title="Chỉnh sửa">✎</button>
+                         <button onclick="deleteTx('${d.rawTxs[0].id}')" style="${_bs};color:var(--dim)" onmouseover="this.style.color='var(--out)'" onmouseout="this.style.color='var(--dim)'" title="Xoá">✕</button>`
+                      : `<button onclick="toggleTxGroup('${d.key.replace(/'/g, "\\'")}')" style="${_bs};color:var(--accent);font-weight:600" title="${_isExp ? "Thu gọn" : "Chỉnh sửa từng giao dịch"}">${_isExp ? "▲" : "▼"} ${d.rawTxs.length}</button>`
+                    }
+                  </td>
+                </tr>`;
+              const _expRows = (!_isSingle && _isExp) ? d.rawTxs.map((t) => {
+                const _tsn = Array.isArray(t.SN) ? t.SN.map(cleanSN).filter(Boolean) : safeTrim(t.SN).split(/[\n,]+/).map(cleanSN).filter(Boolean);
+                return `
+                <tr style="background:rgba(88,166,255,.04)">
+                  <td style="padding-left:24px;border-left:3px solid var(--accent)">
+                    <span style="font-size:10px;color:var(--dim);font-family:'IBM Plex Mono',monospace">↳ ${safeTrim(t.Description) || safeTrim(t.Item)}</span>
+                  </td>
+                  <td></td>
+                  <td class="mono" style="font-weight:600;color:${t.TxType==="in"?"var(--in)":"var(--out)"}">${toNumber(t.Quantity,0)}</td>
+                  <td style="font-size:11px;color:var(--muted)">${safeTrim(t.Assigned)||"—"}</td>
+                  <td>${statusBadge(t.Status)}</td>
+                  <td class="mono" style="font-size:11px;color:var(--dim)">${_tsn.length ? _tsn.map(s=>`<div style="white-space:nowrap">${s}</div>`).join("") : "—"}</td>
+                  <td class="mono" style="font-size:11px;color:var(--muted);white-space:nowrap">${fmtDate(safeTrim(t.Date))||"—"}</td>
+                  <td style="white-space:nowrap">
+                    <button onclick="openTxEdit('${t.id}')" style="${_bs};color:var(--dim)" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--dim)'" title="Chỉnh sửa">✎</button>
+                    <button onclick="deleteTx('${t.id}')" style="${_bs};color:var(--dim)" onmouseover="this.style.color='var(--out)'" onmouseout="this.style.color='var(--dim)'" title="Xoá">✕</button>
+                  </td>
+                </tr>`;
+              }).join("") : "";
+              return _grpRow + _expRows;
+            }).join("")
+            : `<tr><td colspan="8"><div class="empty"><div class="e-icon">○</div>Không tìm thấy kết quả</div></td></tr>`}
           </tbody>
         </table>
       </div>
@@ -400,7 +466,6 @@ function renderTransactions() {
     </div>
   `;
 }
-
 function setTxFilter(f) {
   txFilter = f;
   txPage = 1;
@@ -482,7 +547,7 @@ function renderStock() {
             <div class="sc-unit">units</div>
           </div>
           ${s.Note ? `<div style="margin-top:8px;font-size:11px;color:var(--dim);line-height:1.3">${safeTrim(s.Note)}</div>` : ""}
-          ${s.SN ? `<div style="margin-top:4px;font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--dim)">${safeTrim(s.SN)}</div>` : ""}
+          ${s.SN ? `<div style="margin-top:4px;font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--dim);line-height:1.7">${safeTrim(s.SN).split(/[\n,]+/).filter(Boolean).map((v) => `<div>${v.trim()}</div>`).join("")}</div>` : ""}
           <div style="display:flex;gap:4px;margin-top:10px">
             <button onclick="quickAdjust('${String(s.id).replace(/'/g, "\\'")}',-1)" style="flex:1;padding:4px;background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.2);border-radius:4px;color:var(--out);cursor:pointer;font-size:14px;font-weight:700;transition:all .15s" onmouseover="this.style.background='rgba(248,81,73,.18)'" onmouseout="this.style.background='rgba(248,81,73,.08)'">−</button>
             <button onclick="quickAdjust('${String(s.id).replace(/'/g, "\\'")}',1)" style="flex:1;padding:4px;background:rgba(63,185,80,.08);border:1px solid rgba(63,185,80,.2);border-radius:4px;color:var(--in);cursor:pointer;font-size:14px;font-weight:700;transition:all .15s" onmouseover="this.style.background='rgba(63,185,80,.18)'" onmouseout="this.style.background='rgba(63,185,80,.08)'">＋</button>
@@ -542,14 +607,14 @@ function renderStores() {
               const brand = safeTrim(s.Brand || s.brand);
               const devItems = [
                 ...new Set(
-                  TX.filter((t) => safeTrim(t.Assigned).includes(code) && t.TxType === "out").map((t) => safeTrim(t.Item))
+                  TX.filter((t) => matchAssigned(t.Assigned, code, name) && t.TxType === "out").map((t) => safeTrim(t.Item))
                 ),
               ].filter(Boolean);
               return `
                 <div class="store-card store-card-clickable" onclick="renderStoreDetail('${code.replace(/'/g, "\\'")}')">
                   <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
                     <div class="sc-code">${hl(code, q)}</div>
-                    ${safeTrim(s.O2O || s.o2o) ? `<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:rgba(63,185,80,.1);color:var(--in);border:1px solid rgba(63,185,80,.2)">O2O</span>` : ""}
+                    <span style="font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid ${safeTrim(s.O2O || s.o2o) ? 'rgba(63,185,80,.3);background:rgba(63,185,80,.1);color:var(--in)' : 'var(--border);background:var(--surface2);color:var(--dim)'}">O2O</span>
                     ${safeTrim(s.Type || s.type) ? `<span style="font-size:10px;color:var(--dim)">${safeTrim(s.Type || s.type)}</span>` : ""}
                     <span style="margin-left:auto;font-size:11px;color:var(--accent);font-family:'IBM Plex Mono',monospace">${devItems.length} loại TB</span>
                   </div>
@@ -586,7 +651,8 @@ function renderStoreDetail(storeCode) {
   const store = STORES.find((s) => safeTrim(s["Store code"] || s.store_code) === storeCode);
   if (!store) return;
 
-  const storeTx = TX.filter((t) => safeTrim(t.Assigned).includes(storeCode));
+  const storeName = safeTrim(store["Store name"] || store.store_name);
+  const storeTx = TX.filter((t) => matchAssigned(t.Assigned, storeCode, storeName));
   const outTx = storeTx.filter((t) => t.TxType === "out");
   const inTx = storeTx.filter((t) => t.TxType === "in");
 
@@ -596,9 +662,12 @@ function renderStoreDetail(storeCode) {
     if (!key) return;
     if (!deviceMap[key]) deviceMap[key] = { item: key, qty: 0, sn: new Set(), assigned: new Set(), lastDate: "" };
     deviceMap[key].qty += toNumber(t.Quantity, 0);
-    safeTrim(t.SN)
-      .split("\n")
-      .forEach((s) => s.trim() && deviceMap[key].sn.add(s.trim()));
+    const _sn = t.SN;
+    if (Array.isArray(_sn)) {
+      _sn.forEach((s) => { const v = cleanSN(s); if (v) deviceMap[key].sn.add(v); });
+    } else {
+      safeTrim(_sn).split(/[\n,]+/).forEach((s) => { const sv = cleanSN(s); if (sv) deviceMap[key].sn.add(sv); });
+    }
     if (safeTrim(t.Assigned)) deviceMap[key].assigned.add(safeTrim(t.Assigned));
     if (safeTrim(t.Date) > deviceMap[key].lastDate) deviceMap[key].lastDate = safeTrim(t.Date);
   });
@@ -624,7 +693,8 @@ function renderStoreDetail(storeCode) {
         <div>
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
             <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--accent);background:rgba(88,166,255,.1);padding:3px 10px;border-radius:4px">${code}</span>
-            ${safeTrim(store.O2O || store.o2o) ? `<span style="font-size:11px;padding:2px 8px;border-radius:3px;background:rgba(63,185,80,.1);color:var(--in);border:1px solid rgba(63,185,80,.2)">O2O</span>` : ""}
+            <button onclick="toggleO2O('${code}')" title="Bấm để bật/tắt O2O" style="font-size:11px;padding:2px 10px;border-radius:4px;cursor:pointer;font-weight:600;letter-spacing:.5px;transition:all .15s;border:1px solid ${safeTrim(store.O2O || store.o2o) ? 'rgba(63,185,80,.4);background:rgba(63,185,80,.15);color:var(--in)' : 'var(--border);background:var(--surface2);color:var(--dim)'}">O2O</button>
+            <button onclick="openStoreModal('${store.id}')" title="Chỉnh sửa thông tin cửa hàng" style="font-size:12px;padding:2px 10px;border-radius:4px;cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--muted);transition:all .15s" onmouseover="this.style.color='var(--text)';this.style.borderColor='var(--accent)'" onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'">✎ Sửa</button>
             <span style="font-size:11px;color:var(--warn);text-transform:uppercase;letter-spacing:.5px">${brand}</span>
           </div>
           <div style="font-size:22px;font-weight:700;margin-bottom:4px">${name}</div>
@@ -671,10 +741,10 @@ function renderStoreDetail(storeCode) {
                   <td style="font-weight:500">${d.item}</td>
                   <td><span style="font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:700;color:var(--accent)">${d.qty}</span></td>
                   <td style="font-size:11px;color:var(--muted)">${[...d.assigned].map((a) => `<span style="background:var(--surface2);padding:1px 6px;border-radius:3px;margin-right:3px">${a}</span>`).join("")}</td>
-                  <td style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--dim);max-width:180px">
-                    ${d.sn.size ? [...d.sn].slice(0, 3).join("<br>") + (d.sn.size > 3 ? `<br><span style="color:var(--accent)">+${d.sn.size - 3} more</span>` : "") : "—"}
+                  <td style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--dim)">
+                    ${d.sn.size ? [...d.sn].map((s) => `<div style="white-space:nowrap">${s}</div>`).join("") : "—"}
                   </td>
-                  <td style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted)">${d.lastDate || "—"}</td>
+                  <td style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted)">${fmtDate(d.lastDate) || "—"}</td>
                 </tr>
               `).join("")}
             </tbody>
@@ -697,7 +767,7 @@ function renderStoreDetail(storeCode) {
                   <td class="mono" style="font-size:15px;font-weight:600;color:${t.TxType === "in" ? "var(--in)" : "var(--out)"}">${toNumber(t.Quantity, 0)}</td>
                   <td style="font-size:11px;color:var(--muted)">${safeTrim(t.Assigned) || "—"}</td>
                   <td>${statusBadge(t.Status)}</td>
-                  <td class="mono" style="font-size:11px;color:var(--muted);white-space:nowrap">${safeTrim(t.Date) || "—"}</td>
+                  <td class="mono" style="font-size:11px;color:var(--muted);white-space:nowrap">${fmtDate(safeTrim(t.Date)) || "—"}</td>
                 </tr>
               `).join("")}
             </tbody>
@@ -711,15 +781,116 @@ function renderStoreDetail(storeCode) {
 window.showPage = showPage;
 window.renderStoreDetail = renderStoreDetail;
 
+function openStoreModal(storeId) {
+  if (!requireAuth("chỉnh sửa cửa hàng")) return;
+  const store = STORES.find((s) => String(s.id) === String(storeId));
+  if (!store) return;
+  editingStoreId = storeId;
+  const g = (keys) => { for (const k of keys) { const v = safeTrim(store[k]); if (v) return v; } return ""; };
+  $("stCode").value        = g(["Store code","store_code"]);
+  $("stName").value        = g(["Store name","store_name"]);
+  $("stBrand").value       = g(["Brand","brand"]);
+  $("stBrand2").value      = g(["Brand2","brand2"]);
+  $("stType").value        = g(["Type","type"]);
+  $("stType2").value       = g(["Type 2","type2","Type2"]);
+  $("stIncharge").value    = g(["Incharge","incharge"]);
+  $("stPosition").value    = g(["Position","position"]);
+  $("stPhone").value       = g(["Phone","phone"]);
+  $("stEmail").value       = g(["Email","email"]);
+  $("stAM").value          = g(["AM","am"]);
+  $("stOpenDate").value    = g(["Open date","open_date"]);
+  $("stTotalArea").value   = store.TotalArea ?? store.total_area ?? "";
+  $("stSellArea").value    = store.SellArea ?? store.sell_area ?? "";
+  $("stRegion").value      = g(["Region","region"]);
+  $("stCostCenter").value  = g(["Cost Center","cost_center","CostCenter"]);
+  $("stAddress").value     = g(["Address","address"]);
+  $("storeModal").classList.add("open");
+  setTimeout(() => $("stName").focus(), 150);
+}
+
+function closeStoreModal() {
+  $("storeModal").classList.remove("open");
+  editingStoreId = null;
+}
+
+async function submitStore() {
+  if (!editingStoreId) return;
+  const store = STORES.find((s) => String(s.id) === String(editingStoreId));
+  if (!store) return;
+  const code     = safeTrim($("stCode").value);
+  const name     = safeTrim($("stName").value);
+  if (!code || !name) { showToast("Vui lòng nhập Store code và Store name.", "error"); return; }
+  const payload = {
+    "Store code":  code,
+    "Store name":  name,
+    store_code: code, store_name: name, storeKey: code.toLowerCase(),
+    Brand:         safeTrim($("stBrand").value),
+    Brand2:        safeTrim($("stBrand2").value),
+    Type:          safeTrim($("stType").value),
+    "Type 2":      safeTrim($("stType2").value),
+    Incharge:      safeTrim($("stIncharge").value),
+    Position:      safeTrim($("stPosition").value),
+    Phone:         safeTrim($("stPhone").value),
+    Email:         safeTrim($("stEmail").value),
+    AM:            safeTrim($("stAM").value),
+    "Open date":   safeTrim($("stOpenDate").value),
+    TotalArea:     parseFloat($("stTotalArea").value) || 0,
+    SellArea:      parseFloat($("stSellArea").value) || 0,
+    Region:        safeTrim($("stRegion").value),
+    "Cost Center": safeTrim($("stCostCenter").value),
+    Address:       safeTrim($("stAddress").value),
+    updatedAt: serverTimestamp(),
+  };
+  try {
+    $("btnSubmitStore").disabled = true;
+    await updateDoc(doc(db, "stores", String(editingStoreId)), payload);
+    Object.assign(store, payload);
+    buildAutocompleteSources();
+    showToast(`✓ Đã cập nhật: ${name}`, "success");
+    closeStoreModal();
+    renderStoreDetail(code);
+  } catch (e) {
+    showToast(`Lỗi: ${e?.message || e}`, "error");
+  } finally {
+    $("btnSubmitStore").disabled = false;
+  }
+}
+
+window.openStoreModal = openStoreModal;
+
+async function toggleO2O(storeCode) {
+  const store = STORES.find((s) => safeTrim(s["Store code"] || s.store_code) === storeCode);
+  if (!store) return;
+  const isOn = !!safeTrim(store.O2O || store.o2o);
+  const newVal = isOn ? "" : "O2O";
+  store.O2O = newVal;
+  if (store.o2o !== undefined) store.o2o = newVal;
+  try {
+    const ref = doc(db, "stores", store.id);
+    await updateDoc(ref, { O2O: newVal, updatedAt: serverTimestamp() });
+  } catch (e) {
+    console.error("toggleO2O:", e);
+  }
+  renderStoreDetail(storeCode);
+}
+window.toggleO2O = toggleO2O;
+
 // ── OFFICES / WAREHOUSES ──────────────────────────────────
 function renderOffices() {
   const cards = OFFICES.map((o) => {
     const code = safeTrim(o.code || o.Code || o["Office code"]);
-    const deviceCount = TX.filter((t) => t.TxType === "out" && safeTrim(t.Assigned).includes(code)).length;
+    const name = safeTrim(o.name || o.Name || o["Office name"]);
+    const deviceCount = TX.filter((t) => t.TxType === "out" && matchAssigned(t.Assigned, code, name)).length;
     return `
       <div class="store-card store-card-clickable" onclick="renderOfficeDetail('${code.replace(/'/g, "\\'")}')">
-        <div class="sc-code">${code}</div>
-        <div class="sc-name">${safeTrim(o.name || o.Name || o["Office name"])}</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px">
+          <div class="sc-code">${code}</div>
+          <div style="display:flex;gap:4px" onclick="event.stopPropagation()">
+            <button onclick="openOfficeModal('${String(o.id).replace(/'/g, "\\'")}')" style="background:transparent;border:none;color:var(--dim);cursor:pointer;font-size:13px;padding:2px 4px;border-radius:3px;transition:color .15s" title="Chỉnh sửa">✎</button>
+            <button onclick="deleteOffice('${String(o.id).replace(/'/g, "\\'")}')" style="background:transparent;border:none;color:var(--dim);cursor:pointer;font-size:13px;padding:2px 4px;border-radius:3px;transition:color .15s" title="Xoá">✕</button>
+          </div>
+        </div>
+        <div class="sc-name">${name}</div>
         <div style="font-size:12px;color:var(--dim);margin-top:4px">📍 ${safeTrim(o.location || o.Location || "")}</div>
         <div style="font-size:12px;color:var(--dim);margin-top:2px">👤 ${safeTrim(o.incharge || o.Incharge || "")}</div>
         <div class="sr" style="margin-top:8px">${deviceCount} thiết bị đang dùng</div>
@@ -741,7 +912,8 @@ function renderOffices() {
 function renderOfficeDetail(code) {
   const office = OFFICES.find((o) => safeTrim(o.code || o.Code || o["Office code"]) === code);
   if (!office) return;
-  const assigned = TX.filter((t) => t.TxType === "out" && safeTrim(t.Assigned).includes(code));
+  const officeName = safeTrim(office.name || office.Name || office["Office name"]);
+  const assigned = TX.filter((t) => t.TxType === "out" && matchAssigned(t.Assigned, code, officeName));
 
   $("main").innerHTML = `
     <div class="page-header" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
@@ -758,11 +930,11 @@ function renderOfficeDetail(code) {
           <tbody>
             ${assigned.length ? assigned.sort((a,b)=>safeTrim(b.Date).localeCompare(safeTrim(a.Date))).map((t) => `
               <tr>
-                <td class="mono" style="font-size:11px;color:var(--muted)">${safeTrim(t.Date) || "—"}</td>
+                <td class="mono" style="font-size:11px;color:var(--muted)">${fmtDate(safeTrim(t.Date)) || "—"}</td>
                 <td style="font-weight:500">${safeTrim(t.Item)}</td>
                 <td style="font-size:11px;color:var(--dim)">${safeTrim(t.Description) || "—"}</td>
                 <td class="mono" style="font-weight:600">${toNumber(t.Quantity,0)} ${safeTrim(t.Unit)||""}</td>
-                <td class="mono" style="font-size:11px;color:var(--dim)">${safeTrim(t.SN) || "—"}</td>
+                <td class="mono" style="font-size:11px;color:var(--dim)">${cleanSN(safeTrim(t.SN)) || "—"}</td>
                 <td>${statusBadge(t.Status)}</td>
               </tr>
             `).join("") : `<tr><td colspan="6"><div class="empty"><div class="e-icon">○</div>Không có thiết bị nào</div></td></tr>`}
@@ -773,37 +945,104 @@ function renderOfficeDetail(code) {
   `;
 }
 
-async function openOfficeModal() {
-  if (!requireAuth("thêm văn phòng")) return;
-  const code = prompt("Mã văn phòng (vd: OFF-HCM):");
-  if (!code) return;
-  const name = prompt("Tên văn phòng:") || "";
-  if (!name.trim()) return;
-  const location = prompt("Địa chỉ:") || "";
-  const incharge = prompt("Người phụ trách:") || "";
+let editingStoreId = null;
+let editingOfficeId = null;
 
+function openOfficeModal(officeId) {
+  if (!requireAuth("thêm/chỉnh sửa văn phòng")) return;
+  editingOfficeId = officeId ?? null;
+  const isEdit = editingOfficeId != null;
+
+  $("officeModalTitle").textContent = isEdit ? "✎ Chỉnh sửa văn phòng" : "＋ Thêm văn phòng";
+  $("btnSubmitOffice").textContent = isEdit ? "Cập nhật" : "Lưu văn phòng";
+
+  if (isEdit) {
+    const o = OFFICES.find((x) => String(x.id) === String(editingOfficeId));
+    if (!o) return;
+    $("ofCode").value = safeTrim(o.code || o.Code || o["Office code"]);
+    $("ofName").value = safeTrim(o.name || o.Name || o["Office name"]);
+    $("ofLocation").value = safeTrim(o.location || o.Location || "");
+    $("ofIncharge").value = safeTrim(o.incharge || o.Incharge || "");
+  } else {
+    ["ofCode", "ofName", "ofLocation", "ofIncharge"].forEach((id) => ($(id).value = ""));
+  }
+  $("officeModal").classList.add("open");
+  setTimeout(() => $(isEdit ? "ofName" : "ofCode").focus(), 150);
+}
+
+function closeOfficeModal() {
+  $("officeModal").classList.remove("open");
+  editingOfficeId = null;
+}
+
+async function submitOffice() {
+  const code = safeTrim($("ofCode").value);
+  const name = safeTrim($("ofName").value);
+  const location = safeTrim($("ofLocation").value);
+  const incharge = safeTrim($("ofIncharge").value);
+  if (!code || !name) {
+    showToast("Vui lòng nhập mã và tên văn phòng.", "error");
+    return;
+  }
   try {
-    const batch = writeBatch(db);
-    const ref = doc(collection(db, "offices"));
-    batch.set(ref, { code: code.trim(), name: name.trim(), location, incharge, createdAt: serverTimestamp() });
-    await batch.commit();
-    OFFICES.push({ id: ref.id, code: code.trim(), name: name.trim(), location, incharge });
-    $("cnt-offices").textContent = OFFICES.length;
-    showToast(`✓ Đã thêm văn phòng: ${name.trim()}`, "success");
+    $("btnSubmitOffice").disabled = true;
+    if (editingOfficeId != null) {
+      const ref = doc(db, "offices", String(editingOfficeId));
+      await updateDoc(ref, { code, name, location, incharge, updatedAt: serverTimestamp() });
+      const o = OFFICES.find((x) => String(x.id) === String(editingOfficeId));
+      if (o) { o.code = code; o.name = name; o.location = location; o.incharge = incharge; }
+      showToast(`✓ Đã cập nhật văn phòng: ${name}`, "success");
+    } else {
+      const ref = doc(collection(db, "offices"));
+      const batch = writeBatch(db);
+      batch.set(ref, { code, name, location, incharge, createdAt: serverTimestamp() });
+      await batch.commit();
+      OFFICES.push({ id: ref.id, code, name, location, incharge });
+      $("cnt-offices").textContent = OFFICES.length;
+      showToast(`✓ Đã thêm văn phòng: ${name}`, "success");
+    }
+    buildAutocompleteSources();
+    closeOfficeModal();
     render();
   } catch (e) {
     showToast(`Lỗi: ${e?.message || e}`, "error");
+  } finally {
+    $("btnSubmitOffice").disabled = false;
+  }
+}
+
+async function deleteOffice(id) {
+  if (!requireAuth("xóa văn phòng")) return;
+  const o = OFFICES.find((x) => String(x.id) === String(id));
+  if (!o) return;
+  if (!confirm(`Xoá văn phòng "${safeTrim(o.name || o.Name || "")}"?`)) return;
+  try {
+    await deleteDoc(doc(db, "offices", String(id)));
+    OFFICES = OFFICES.filter((x) => String(x.id) !== String(id));
+    $("cnt-offices").textContent = OFFICES.length;
+    buildAutocompleteSources();
+    showToast(`Đã xoá: ${safeTrim(o.name || o.Name || "")}`, "success");
+    render();
+  } catch (e) {
+    showToast(`Lỗi xóa: ${e?.message || e}`, "error");
   }
 }
 
 function renderWarehouses() {
   const cards = WAREHOUSES.map((w) => {
     const code = safeTrim(w.code || w.Code || w["Warehouse code"]);
-    const deviceCount = TX.filter((t) => t.TxType === "out" && safeTrim(t.Assigned).includes(code)).length;
+    const name = safeTrim(w.name || w.Name || w["Warehouse name"]);
+    const deviceCount = TX.filter((t) => t.TxType === "out" && matchAssigned(t.Assigned, code, name)).length;
     return `
       <div class="store-card store-card-clickable" onclick="renderWarehouseDetail('${code.replace(/'/g, "\\'")}')">
-        <div class="sc-code">${code}</div>
-        <div class="sc-name">${safeTrim(w.name || w.Name || w["Warehouse name"])}</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2px">
+          <div class="sc-code">${code}</div>
+          <div style="display:flex;gap:4px" onclick="event.stopPropagation()">
+            <button onclick="openWarehouseModal('${String(w.id).replace(/'/g, "\\'")}')" style="background:transparent;border:none;color:var(--dim);cursor:pointer;font-size:13px;padding:2px 4px;border-radius:3px;transition:color .15s" title="Chỉnh sửa">✎</button>
+            <button onclick="deleteWarehouse('${String(w.id).replace(/'/g, "\\'")}')" style="background:transparent;border:none;color:var(--dim);cursor:pointer;font-size:13px;padding:2px 4px;border-radius:3px;transition:color .15s" title="Xoá">✕</button>
+          </div>
+        </div>
+        <div class="sc-name">${name}</div>
         <div style="font-size:12px;color:var(--dim);margin-top:4px">📍 ${safeTrim(w.location || w.Location || "")}</div>
         <div style="font-size:12px;color:var(--dim);margin-top:2px">👤 ${safeTrim(w.incharge || w.Incharge || "")}</div>
         <div class="sr" style="margin-top:8px">${deviceCount} thiết bị trong kho</div>
@@ -825,7 +1064,27 @@ function renderWarehouses() {
 function renderWarehouseDetail(code) {
   const warehouse = WAREHOUSES.find((w) => safeTrim(w.code || w.Code || w["Warehouse code"]) === code);
   if (!warehouse) return;
-  const assigned = TX.filter((t) => t.TxType === "out" && safeTrim(t.Assigned).includes(code));
+  const warehouseName = safeTrim(warehouse.name || warehouse.Name || warehouse["Warehouse name"]);
+  const assigned = TX.filter((t) => t.TxType === "out" && matchAssigned(t.Assigned, code, warehouseName));
+
+  // Group by item name: sum quantity, collect all serials
+  const itemMap = {};
+  assigned.forEach((t) => {
+    const key = safeTrim(t.Item);
+    if (!key) return;
+    if (!itemMap[key]) itemMap[key] = { item: key, qty: 0, sns: [], unit: safeTrim(t.Unit) || "", desc: safeTrim(t.Description) || "", status: t.Status, lastDate: "" };
+    itemMap[key].qty += toNumber(t.Quantity, 0);
+    // collect serials – support both array and string formats
+    const snVal = t.SN;
+    if (Array.isArray(snVal)) {
+      snVal.forEach((s) => { const v = cleanSN(s); if (v) itemMap[key].sns.push(v); });
+    } else {
+      const v = safeTrim(snVal);
+      if (v) v.split(/[\n,]+/).forEach((s) => { const sv = cleanSN(s); if (sv) itemMap[key].sns.push(sv); });
+    }
+    if (safeTrim(t.Date) > itemMap[key].lastDate) itemMap[key].lastDate = safeTrim(t.Date);
+  });
+  const grouped = Object.values(itemMap).sort((a, b) => a.item.localeCompare(b.item));
 
   $("main").innerHTML = `
     <div class="page-header" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
@@ -838,16 +1097,20 @@ function renderWarehouseDetail(code) {
     <div class="table-wrap">
       <div class="table-scroll" style="max-height:520px">
         <table>
-          <thead><tr><th>Ngày</th><th>Thiết bị</th><th>Mô tả</th><th>SL</th><th>Serial</th><th>Trạng thái</th></tr></thead>
+          <thead><tr><th>Thiết bị</th><th>Mô tả</th><th>SL</th><th>Serial (${grouped.reduce((s,d)=>s+d.sns.length,0)})</th><th>Ngày</th><th>Trạng thái</th></tr></thead>
           <tbody>
-            ${assigned.length ? assigned.sort((a,b)=>safeTrim(b.Date).localeCompare(safeTrim(a.Date))).map((t) => `
+            ${grouped.length ? grouped.map((d) => `
               <tr>
-                <td class="mono" style="font-size:11px;color:var(--muted)">${safeTrim(t.Date) || "—"}</td>
-                <td style="font-weight:500">${safeTrim(t.Item)}</td>
-                <td style="font-size:11px;color:var(--dim)">${safeTrim(t.Description) || "—"}</td>
-                <td class="mono" style="font-weight:600">${toNumber(t.Quantity,0)} ${safeTrim(t.Unit)||""}</td>
-                <td class="mono" style="font-size:11px;color:var(--dim)">${safeTrim(t.SN) || "—"}</td>
-                <td>${statusBadge(t.Status)}</td>
+                <td style="font-weight:500">${d.item}</td>
+                <td style="font-size:11px;color:var(--dim)">${d.desc || "—"}</td>
+                <td class="mono" style="font-weight:600;font-size:15px;color:var(--accent)">${d.qty} <span style="font-size:11px;color:var(--muted)">${d.unit}</span></td>
+                <td class="mono" style="font-size:11px;color:var(--dim)">
+                  ${d.sns.length
+                    ? d.sns.map((s) => `<div style="white-space:nowrap">${s}</div>`).join("")
+                    : "—"}
+                </td>
+                <td class="mono" style="font-size:11px;color:var(--muted)">${fmtDate(d.lastDate) || "—"}</td>
+                <td>${statusBadge(d.status)}</td>
               </tr>
             `).join("") : `<tr><td colspan="6"><div class="empty"><div class="e-icon">○</div>Không có thiết bị nào</div></td></tr>`}
           </tbody>
@@ -857,33 +1120,99 @@ function renderWarehouseDetail(code) {
   `;
 }
 
-async function openWarehouseModal() {
-  if (!requireAuth("thêm kho")) return;
-  const code = prompt("Mã kho (vd: WH-SGN):");
-  if (!code) return;
-  const name = prompt("Tên kho:") || "";
-  if (!name.trim()) return;
-  const location = prompt("Địa chỉ:") || "";
-  const incharge = prompt("Người phụ trách:") || "";
+let editingWarehouseId = null;
 
+function openWarehouseModal(warehouseId) {
+  if (!requireAuth("thêm/chỉnh sửa kho")) return;
+  editingWarehouseId = warehouseId ?? null;
+  const isEdit = editingWarehouseId != null;
+
+  $("warehouseModalTitle").textContent = isEdit ? "✎ Chỉnh sửa kho" : "＋ Thêm kho";
+  $("btnSubmitWarehouse").textContent = isEdit ? "Cập nhật" : "Lưu kho";
+
+  if (isEdit) {
+    const w = WAREHOUSES.find((x) => String(x.id) === String(editingWarehouseId));
+    if (!w) return;
+    $("whCode").value = safeTrim(w.code || w.Code || w["Warehouse code"]);
+    $("whName").value = safeTrim(w.name || w.Name || w["Warehouse name"]);
+    $("whLocation").value = safeTrim(w.location || w.Location || "");
+    $("whIncharge").value = safeTrim(w.incharge || w.Incharge || "");
+  } else {
+    ["whCode", "whName", "whLocation", "whIncharge"].forEach((id) => ($(id).value = ""));
+  }
+  $("warehouseModal").classList.add("open");
+  setTimeout(() => $(isEdit ? "whName" : "whCode").focus(), 150);
+}
+
+function closeWarehouseModal() {
+  $("warehouseModal").classList.remove("open");
+  editingWarehouseId = null;
+}
+
+async function submitWarehouse() {
+  const code = safeTrim($("whCode").value);
+  const name = safeTrim($("whName").value);
+  const location = safeTrim($("whLocation").value);
+  const incharge = safeTrim($("whIncharge").value);
+  if (!code || !name) {
+    showToast("Vui lòng nhập mã và tên kho.", "error");
+    return;
+  }
   try {
-    const batch = writeBatch(db);
-    const ref = doc(collection(db, "warehouses"));
-    batch.set(ref, { code: code.trim(), name: name.trim(), location, incharge, createdAt: serverTimestamp() });
-    await batch.commit();
-    WAREHOUSES.push({ id: ref.id, code: code.trim(), name: name.trim(), location, incharge });
-    $("cnt-warehouses").textContent = WAREHOUSES.length;
-    showToast(`✓ Đã thêm kho: ${name.trim()}`, "success");
+    $("btnSubmitWarehouse").disabled = true;
+    if (editingWarehouseId != null) {
+      const ref = doc(db, "warehouses", String(editingWarehouseId));
+      await updateDoc(ref, { code, name, location, incharge, updatedAt: serverTimestamp() });
+      const w = WAREHOUSES.find((x) => String(x.id) === String(editingWarehouseId));
+      if (w) { w.code = code; w.name = name; w.location = location; w.incharge = incharge; }
+      showToast(`✓ Đã cập nhật kho: ${name}`, "success");
+    } else {
+      const ref = doc(collection(db, "warehouses"));
+      const batch = writeBatch(db);
+      batch.set(ref, { code, name, location, incharge, createdAt: serverTimestamp() });
+      await batch.commit();
+      WAREHOUSES.push({ id: ref.id, code, name, location, incharge });
+      $("cnt-warehouses").textContent = WAREHOUSES.length;
+      showToast(`✓ Đã thêm kho: ${name}`, "success");
+    }
+    buildAutocompleteSources();
+    closeWarehouseModal();
     render();
   } catch (e) {
     showToast(`Lỗi: ${e?.message || e}`, "error");
+  } finally {
+    $("btnSubmitWarehouse").disabled = false;
+  }
+}
+
+async function deleteWarehouse(id) {
+  if (!requireAuth("xóa kho")) return;
+  const w = WAREHOUSES.find((x) => String(x.id) === String(id));
+  if (!w) return;
+  if (!confirm(`Xoá kho "${safeTrim(w.name || w.Name || "")}"?`)) return;
+  try {
+    await deleteDoc(doc(db, "warehouses", String(id)));
+    WAREHOUSES = WAREHOUSES.filter((x) => String(x.id) !== String(id));
+    $("cnt-warehouses").textContent = WAREHOUSES.length;
+    buildAutocompleteSources();
+    showToast(`Đã xoá: ${safeTrim(w.name || w.Name || "")}`, "success");
+    render();
+  } catch (e) {
+    showToast(`Lỗi xóa: ${e?.message || e}`, "error");
   }
 }
 
 window.renderOfficeDetail = renderOfficeDetail;
 window.openOfficeModal = openOfficeModal;
+window.deleteOffice = deleteOffice;
+window.submitOffice = submitOffice;
 window.renderWarehouseDetail = renderWarehouseDetail;
 window.openWarehouseModal = openWarehouseModal;
+window.deleteWarehouse = deleteWarehouse;
+window.submitWarehouse = submitWarehouse;
+window.openTxEdit = openTxEdit;
+window.deleteTx = deleteTx;
+window.toggleTxGroup = toggleTxGroup;
 
 // ── AUTOCOMPLETE SOURCES ──────────────────────────────────
 let AC_ITEMS = [];
@@ -907,15 +1236,45 @@ function buildAutocompleteSources() {
 
 // ── TX MODAL / AUTOCOMPLETE ────────────────────────────────
 let newTxType = "in";
+let editingTxId = null;
+let expandedTxGroups = new Set();
+
+function updateTxSerialFields(qty, prefill = []) {
+  const wrapper = $("fSNWrapper");
+  const countEl = $("fSNCount");
+  if (!wrapper) return;
+  const n = Math.max(1, toNumber(qty, 1));
+  const existing = [...wrapper.querySelectorAll(".sn-input")].map((i) => i.value);
+  wrapper.innerHTML = "";
+  for (let i = 0; i < n; i++) {
+    const inp = document.createElement("input");
+    inp.type = "text";
+    inp.className = "field-input sn-input";
+    inp.placeholder = `Serial ${i + 1}`;
+    inp.autocomplete = "off";
+    inp.value = prefill[i] ?? existing[i] ?? "";
+    wrapper.appendChild(inp);
+  }
+  if (countEl) countEl.textContent = n > 1 ? `(${n} serial)` : "";
+}
+
+function getTxSerials() {
+  const inputs = document.querySelectorAll("#fSNWrapper .sn-input");
+  return [...inputs].map((i) => i.value.trim()).filter(Boolean);
+}
 
 function openModal(prefillType) {
   if (!requireAuth("thêm giao dịch")) return;
-  if (prefillType) setTxType(prefillType);
+  editingTxId = null;
+  $("modalTitle").textContent = "+ Nhập giao dịch mới";
+  $("btnSubmitTx").textContent = "Lưu giao dịch";
+  setTxType(prefillType || "out");
 
   $("fDate").value = new Date().toISOString().split("T")[0];
-  ["fItem", "fTypeDevice", "fAssigned", "fSN", "fDesc"].forEach((id) => ($(id).value = ""));
+  ["fItem", "fTypeDevice", "fAssigned", "fDesc"].forEach((id) => ($(id).value = ""));
   $("fQty").value = 1;
   $("fStatus").value = "";
+  updateTxSerialFields(1, []);
   $("txModal").classList.add("open");
   setTimeout(() => $("fItem").focus(), 150);
 }
@@ -924,6 +1283,7 @@ function closeModal() {
   $("txModal").classList.remove("open");
   $("acList").classList.remove("open");
   $("acAssignedList").classList.remove("open");
+  editingTxId = null;
 }
 
 function setTxType(type) {
@@ -1031,6 +1391,49 @@ function acAssignedKey(e) {
   } else if (e.key === "Escape") list.classList.remove("open");
 }
 
+function openTxEdit(txId) {
+  if (!requireAuth("chỉnh sửa giao dịch")) return;
+  const t = TX.find((x) => String(x.id) === String(txId));
+  if (!t) return;
+  editingTxId = txId;
+  $("modalTitle").textContent = "✎ Chỉnh sửa giao dịch";
+  $("btnSubmitTx").textContent = "Cập nhật";
+  setTxType(t.TxType || "out");
+  $("fItem").value = safeTrim(t.Item);
+  $("fTypeDevice").value = safeTrim(t.TypeDevice || "");
+  $("fQty").value = toNumber(t.Quantity, 1);
+  $("fDate").value = safeTrim(t.Date);
+  $("fDesc").value = safeTrim(t.Description);
+  $("fUnit").value = safeTrim(t.Unit) || "pcs";
+  $("fAssigned").value = safeTrim(t.Assigned);
+  $("fStatus").value = safeTrim(t.Status);
+  const _snPrefill = Array.isArray(t.SN) ? t.SN.filter(Boolean) : safeTrim(t.SN).split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
+  updateTxSerialFields(toNumber(t.Quantity, 1), _snPrefill);
+  $("txModal").classList.add("open");
+  setTimeout(() => $("fItem").focus(), 150);
+}
+
+async function deleteTx(txId) {
+  if (!requireAuth("xóa giao dịch")) return;
+  const t = TX.find((x) => String(x.id) === String(txId));
+  if (!t || !confirm(`Xoá giao dịch "${safeTrim(t.Item)}" (${safeTrim(t.Date)})?`)) return;
+  try {
+    await deleteDoc(doc(db, "transactions", String(txId)));
+    TX = TX.filter((x) => String(x.id) !== String(txId));
+    $("cnt-tx").textContent = TX.length;
+    showToast("Đã xoá giao dịch.", "success");
+    render();
+  } catch (e) {
+    showToast(`Lỗi xóa: ${e?.message || e}`, "error");
+  }
+}
+
+function toggleTxGroup(grpKey) {
+  if (expandedTxGroups.has(grpKey)) expandedTxGroups.delete(grpKey);
+  else expandedTxGroups.add(grpKey);
+  render();
+}
+
 // expose autocomplete handlers
 window.openModal = openModal;
 window.acInput = acInput;
@@ -1052,76 +1455,130 @@ async function submitTransaction() {
     return;
   }
 
-  const txRef = doc(collection(db, "transactions"));
-  const batch = writeBatch(db);
-
-  const payload = {
-    No: TX.length + 1,
-    Item: item,
-    itemKey: keyOf(item),
-    Description: safeTrim($("fDesc").value),
-    Date: date,
-    TxType: newTxType,
-    Quantity: qty,
-    Unit: safeTrim($("fUnit").value) || "pcs",
-    Assigned: safeTrim($("fAssigned").value),
-    Status: safeTrim($("fStatus").value),
-    SN: safeTrim($("fSN").value),
-    Remark: "",
-    createdAt: serverTimestamp(),
-    createdBy: currentUser?.uid || null,
-  };
-  batch.set(txRef, payload);
-
-  // Update stock by itemKey
-  const itemKey = keyOf(item);
-  const stockSnap = await getDocs(query(collection(db, "stock"), where("itemKey", "==", itemKey)));
-  const typeDevice = safeTrim($("fTypeDevice").value);
-
-  if (!stockSnap.empty) {
-    const stockDoc = stockSnap.docs[0];
-    const sData = stockDoc.data();
-    const oldStock = toNumber(sData.Stock, 0);
-    const next = Math.max(0, oldStock + (newTxType === "in" ? qty : -qty));
-    batch.update(stockDoc.ref, {
-      Item: item,
-      itemKey,
-      TypeDevice: safeTrim(sData.TypeDevice) || typeDevice || "Other",
-      Stock: next,
-      updatedAt: serverTimestamp(),
-    });
-  } else if (newTxType === "in") {
-    const sRef = doc(collection(db, "stock"));
-    batch.set(sRef, {
-      No: STOCK.length + 1,
-      Item: item,
-      itemKey,
-      TypeDevice: typeDevice || "Other",
-      Stock: qty,
-      Note: "",
-      SN: safeTrim($("fSN").value),
-      createdAt: serverTimestamp(),
-      createdBy: currentUser?.uid || null,
-    });
-  }
-
   try {
     $("btnSubmitTx").disabled = true;
-    await batch.commit();
 
-    TX.unshift({ id: txRef.id, ...payload, isNew: true });
-    $("cnt-tx").textContent = TX.length;
+    if (editingTxId != null) {
+      // ── EDIT MODE ──────────────────────────────────────
+      const oldTx = TX.find((x) => String(x.id) === String(editingTxId));
+      if (!oldTx) { showToast("Không tìm thấy giao dịch.", "error"); return; }
 
-    // Reload stock list (so UI reflects exact persisted value)
-    STOCK = (await loadCollection("stock")).map((s) => ({ ...s, Stock: toNumber(s.Stock, 0), TypeDevice: safeTrim(s.TypeDevice) }));
-    $("cnt-stock").textContent = STOCK.length;
-    buildAutocompleteSources();
+      const updatePayload = {
+        Item: item,
+        itemKey: keyOf(item),
+        Description: safeTrim($("fDesc").value),
+        Date: date,
+        TxType: newTxType,
+        Quantity: qty,
+        Unit: safeTrim($("fUnit").value) || "pcs",
+        Assigned: safeTrim($("fAssigned").value),
+        Status: safeTrim($("fStatus").value),
+        SN: getTxSerials(),
+        updatedAt: serverTimestamp(),
+        updatedBy: currentUser?.uid || null,
+      };
 
-    closeModal();
-    showToast(`✓ Đã thêm: ${item} (${newTxType === "in" ? "+" : "-"}${qty} ${payload.Unit})`, "success");
-    txFilter = "all";
-    txPage = 1;
-    showPage("transactions");
+      const batch = writeBatch(db);
+      batch.update(doc(db, "transactions", String(editingTxId)), updatePayload);
+
+      const oldItemKey = keyOf(safeTrim(oldTx.Item));
+      const newItemKey = keyOf(item);
+
+      if (oldItemKey === newItemKey) {
+        const stockSnap = await getDocs(query(collection(db, "stock"), where("itemKey", "==", newItemKey)));
+        if (!stockSnap.empty) {
+          const sd = stockSnap.docs[0];
+          const revert = oldTx.TxType === "in" ? -toNumber(oldTx.Quantity, 0) : toNumber(oldTx.Quantity, 0);
+          const apply  = newTxType === "in" ? qty : -qty;
+          batch.update(sd.ref, { Stock: Math.max(0, toNumber(sd.data().Stock, 0) + revert + apply), updatedAt: serverTimestamp() });
+        }
+      } else {
+        const [oldSnap, newSnap] = await Promise.all([
+          getDocs(query(collection(db, "stock"), where("itemKey", "==", oldItemKey))),
+          getDocs(query(collection(db, "stock"), where("itemKey", "==", newItemKey))),
+        ]);
+        if (!oldSnap.empty) {
+          const od = oldSnap.docs[0];
+          const revert = oldTx.TxType === "in" ? -toNumber(oldTx.Quantity, 0) : toNumber(oldTx.Quantity, 0);
+          batch.update(od.ref, { Stock: Math.max(0, toNumber(od.data().Stock, 0) + revert), updatedAt: serverTimestamp() });
+        }
+        if (!newSnap.empty) {
+          const nd = newSnap.docs[0];
+          const apply = newTxType === "in" ? qty : -qty;
+          batch.update(nd.ref, { Stock: Math.max(0, toNumber(nd.data().Stock, 0) + apply), updatedAt: serverTimestamp() });
+        }
+      }
+
+      await batch.commit();
+      const idx = TX.findIndex((x) => String(x.id) === String(editingTxId));
+      if (idx >= 0) TX[idx] = { ...TX[idx], ...updatePayload };
+
+      STOCK = (await loadCollection("stock")).map((s) => ({ ...s, Stock: toNumber(s.Stock, 0), TypeDevice: safeTrim(s.TypeDevice) }));
+      $("cnt-stock").textContent = STOCK.length;
+      buildAutocompleteSources();
+      closeModal();
+      showToast(`✓ Đã cập nhật: ${item}`, "success");
+      render();
+
+    } else {
+      // ── ADD MODE ───────────────────────────────────────
+      const txRef = doc(collection(db, "transactions"));
+      const batch = writeBatch(db);
+
+      const payload = {
+        No: TX.length + 1,
+        Item: item,
+        itemKey: keyOf(item),
+        Description: safeTrim($("fDesc").value),
+        Date: date,
+        TxType: newTxType,
+        Quantity: qty,
+        Unit: safeTrim($("fUnit").value) || "pcs",
+        Assigned: safeTrim($("fAssigned").value),
+        Status: safeTrim($("fStatus").value),
+        SN: getTxSerials(),
+        Remark: "",
+        createdAt: serverTimestamp(),
+        createdBy: currentUser?.uid || null,
+      };
+      batch.set(txRef, payload);
+
+      const itemKey = keyOf(item);
+      const stockSnap = await getDocs(query(collection(db, "stock"), where("itemKey", "==", itemKey)));
+      const typeDevice = safeTrim($("fTypeDevice").value);
+
+      if (!stockSnap.empty) {
+        const stockDoc = stockSnap.docs[0];
+        const sData = stockDoc.data();
+        const next = Math.max(0, toNumber(sData.Stock, 0) + (newTxType === "in" ? qty : -qty));
+        batch.update(stockDoc.ref, {
+          Item: item, itemKey,
+          TypeDevice: safeTrim(sData.TypeDevice) || typeDevice || "Other",
+          Stock: next, updatedAt: serverTimestamp(),
+        });
+      } else if (newTxType === "in") {
+        const sRef = doc(collection(db, "stock"));
+        batch.set(sRef, {
+          No: STOCK.length + 1, Item: item, itemKey,
+          TypeDevice: typeDevice || "Other", Stock: qty,
+          Note: "", SN: getTxSerials(),
+          createdAt: serverTimestamp(), createdBy: currentUser?.uid || null,
+        });
+      }
+
+      await batch.commit();
+      TX.unshift({ id: txRef.id, ...payload, isNew: true });
+      $("cnt-tx").textContent = TX.length;
+
+      STOCK = (await loadCollection("stock")).map((s) => ({ ...s, Stock: toNumber(s.Stock, 0), TypeDevice: safeTrim(s.TypeDevice) }));
+      $("cnt-stock").textContent = STOCK.length;
+      buildAutocompleteSources();
+      closeModal();
+      showToast(`✓ Đã thêm: ${item} (${newTxType === "in" ? "+" : "-"}${qty} ${payload.Unit})`, "success");
+      txFilter = "all";
+      txPage = 1;
+      showPage("transactions");
+    }
   } catch (e) {
     showToast(`Lỗi lưu giao dịch: ${e?.message || e}`, "error");
   } finally {
@@ -1344,6 +1801,8 @@ function wireEvents() {
     if (e.key === "Escape") {
       closeModal();
       closeStockModal();
+      closeOfficeModal();
+      closeWarehouseModal();
       closeAuthModal();
     }
     if (e.key.toLowerCase() === "n" && !["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName)) {
@@ -1376,6 +1835,30 @@ function wireEvents() {
     if (e.target === $("stockModal")) closeStockModal();
   });
 
+  // Office modal buttons
+  $("btnCloseOffice").addEventListener("click", closeOfficeModal);
+  $("btnCancelOffice").addEventListener("click", closeOfficeModal);
+  $("btnSubmitOffice").addEventListener("click", submitOffice);
+  $("officeModal").addEventListener("click", (e) => {
+    if (e.target === $("officeModal")) closeOfficeModal();
+  });
+
+  // Store modal buttons
+  $("btnCloseStore").addEventListener("click", closeStoreModal);
+  $("btnCancelStore").addEventListener("click", closeStoreModal);
+  $("btnSubmitStore").addEventListener("click", submitStore);
+  $("storeModal").addEventListener("click", (e) => {
+    if (e.target === $("storeModal")) closeStoreModal();
+  });
+
+  // Warehouse modal buttons
+  $("btnCloseWarehouse").addEventListener("click", closeWarehouseModal);
+  $("btnCancelWarehouse").addEventListener("click", closeWarehouseModal);
+  $("btnSubmitWarehouse").addEventListener("click", submitWarehouse);
+  $("warehouseModal").addEventListener("click", (e) => {
+    if (e.target === $("warehouseModal")) closeWarehouseModal();
+  });
+
   // Auth modal buttons
   $("btnOpenAuth").addEventListener("click", openAuthModal);
   $("btnCloseAuth").addEventListener("click", closeAuthModal);
@@ -1391,6 +1874,7 @@ function wireEvents() {
   });
 
   // Autocomplete bindings
+  $("fQty").addEventListener("input", () => updateTxSerialFields($("fQty").value));
   $("fItem").addEventListener("input", acInput);
   $("fItem").addEventListener("keydown", acKey);
   $("fAssigned").addEventListener("input", acAssignedInput);
@@ -1399,12 +1883,53 @@ function wireEvents() {
   $("sfType").addEventListener("keydown", acTypeKey);
 }
 
+// ── INACTIVITY AUTO-LOGOUT ────────────────────────────────
+const IDLE_MS = 30 * 60 * 1000; // 30 minutes
+let _idleTimer = null;
+
+function _resetIdleTimer() {
+  clearTimeout(_idleTimer);
+  _idleTimer = setTimeout(async () => {
+    showToast("Phiên làm việc hết hạn do không hoạt động.", "info");
+    await signOut(auth);
+  }, IDLE_MS);
+}
+
+function startInactivityTimer() {
+  ["mousemove", "keydown", "click", "touchstart", "scroll"].forEach((ev) =>
+    document.addEventListener(ev, _resetIdleTimer, { passive: true })
+  );
+  _resetIdleTimer();
+}
+
+function stopInactivityTimer() {
+  clearTimeout(_idleTimer);
+  _idleTimer = null;
+  ["mousemove", "keydown", "click", "touchstart", "scroll"].forEach((ev) =>
+    document.removeEventListener(ev, _resetIdleTimer)
+  );
+}
+
 // ── INIT ──────────────────────────────────────────────────
 wireEvents();
 
+let _prevAuthUser = undefined; // undefined = first call not yet received
 onAuthStateChanged(auth, async (user) => {
+  const wasLoggedIn = _prevAuthUser !== undefined && _prevAuthUser !== null;
+  _prevAuthUser = user || null;
   currentUser = user || null;
   refreshAuthUI();
+  if (user) {
+    startInactivityTimer();
+  } else {
+    stopInactivityTimer();
+    if (wasLoggedIn) {
+      // Show intro screen on sign-out
+      if (typeof window.showIntroScreen === "function") {
+        window.showIntroScreen();
+      }
+    }
+  }
 });
 
 // Initial data load

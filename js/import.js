@@ -150,24 +150,158 @@ function setButtonsEnabled(enabled) {
   $("btnDryRun").disabled = !enabled;
 }
 
+// ── EXCEL PARSER ──────────────────────────────────────────
+
+// Detect if sheet rows look like a store device list
+// (has "Hardware Type" or "Model" column, no "TxType" column)
+function isStoreDeviceSheet(rows) {
+  if (!rows.length) return false;
+  const keys = Object.keys(rows[0]).map((k) => k.toLowerCase().trim());
+  const hasDeviceCols = keys.some((k) => k.includes("hardware") || k.includes("model"));
+  const hasTxCol = keys.some((k) => k === "txtype" || k === "tx type");
+  return hasDeviceCols && !hasTxCol;
+}
+
+// Convert a store-device-sheet row into a transaction row
+// storeCode = sheet name (e.g. "VA19"), date = import date
+function storeRowToTx(row, storeCode, date) {
+  // Flexible column reading
+  const get = (...keys) => {
+    for (const k of keys) {
+      for (const rk of Object.keys(row)) {
+        if (rk.toLowerCase().trim() === k.toLowerCase()) {
+          const v = String(row[rk] ?? "").trim();
+          if (v) return v;
+        }
+      }
+    }
+    return "";
+  };
+  const model        = get("model", "d", "device");
+  const hardwareType = get("hardware type", "hardwaretype", "type", "c");
+  const item         = model || hardwareType;
+  const sn           = get("s/n", "sn", "serial", "serial number", "f");
+  const qty          = parseFloat(get("qty", "quantity", "e")) || 1;
+  const category     = get("category", "b");
+  const no           = get("no", "a");
+  return {
+    No:          no,
+    Item:        item,
+    itemKey:     item.toLowerCase(),
+    Description: hardwareType !== item ? hardwareType : category,
+    Date:        date,
+    TxType:      "out",
+    Quantity:    qty,
+    Unit:        "cái",
+    Assigned:    storeCode,
+    Status:      "Still use",
+    SN:          sn,
+    Remark:      category,
+  };
+}
+
+function excelToRaw(workbook) {
+  const SHEET_MAP = {
+    transactions: ["transaction", "tx", "giao dich", "giao_dich"],
+    stock:        ["stock", "ton kho", "ton_kho", "inventory"],
+    stores:       ["store", "cua hang", "cua_hang", "shop"],
+    minipc:       ["minipc", "mini pc", "pc", "computer", "may tinh"],
+    offices:      ["office", "van phong", "van_phong"],
+    warehouses:   ["warehouse", "kho", "kho hang"],
+  };
+  const result = { transactions: [], stock: [], stores: [], minipc: [], offices: [], warehouses: [] };
+  const XLSX = window.XLSX;
+  if (!XLSX) throw new Error("SheetJS chưa tải xong, hãy thử lại.");
+
+  // Use today as default transaction date
+  const today = new Date();
+  const defaultDate = `${String(today.getDate()).padStart(2,"0")}/${String(today.getMonth()+1).padStart(2,"0")}/${today.getFullYear()}`;
+
+  workbook.SheetNames.forEach((sheetName) => {
+    const lower = sheetName.toLowerCase().trim();
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: "" });
+    let matched = false;
+
+    // 1. Try matching known collection names
+    for (const [col, aliases] of Object.entries(SHEET_MAP)) {
+      if (aliases.some((a) => lower.includes(a))) {
+        result[col].push(...rows);
+        matched = true;
+        log(`  Sheet "${sheetName}" → collection "${col}" (${rows.length} rows)`);
+        break;
+      }
+    }
+
+    if (!matched) {
+      // 2. Detect store-device-list format (sheet name = store code)
+      const dataRows = rows.filter((r) => {
+        const no = String(Object.values(r)[0] ?? "").trim();
+        return no !== "" && no.toLowerCase() !== "no";
+      });
+
+      if (dataRows.length > 0 && isStoreDeviceSheet(dataRows)) {
+        const storeCode = sheetName.trim();
+        const txRows = dataRows.map((r) => storeRowToTx(r, storeCode, defaultDate));
+        result.transactions.push(...txRows);
+        matched = true;
+        log(`  Sheet "${sheetName}" → transactions OUT cho store "${storeCode}" (${txRows.length} thiết bị)`);
+      }
+    }
+
+    if (!matched) {
+      if (workbook.SheetNames.length === 1) {
+        result.stores.push(...rows);
+        log(`  Sheet "${sheetName}" (1 sheet, không rõ tên) → collection "stores" (${rows.length} rows)`);
+      } else {
+        log(`  ⚠ Sheet "${sheetName}" không khớp — bỏ qua.`);
+      }
+    }
+  });
+  return result;
+}
+
 function onFileSelected(file) {
   selectedJson = null;
   setButtonsEnabled(false);
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    try {
-      selectedJson = JSON.parse(reader.result);
-      const { tx, stock, stores, minipc, offices, warehouses } = validateRaw(selectedJson);
-      log(`Loaded JSON OK: transactions=${tx.length}, stock=${stock.length}, stores=${stores.length}, minipc=${minipc.length}, offices=${offices.length}, warehouses=${warehouses.length}`);
-      setButtonsEnabled(true);
-    } catch (e) {
-      log(`✗ JSON lỗi: ${e?.message || e}`);
-      selectedJson = null;
-      setButtonsEnabled(false);
-    }
-  };
-  reader.readAsText(file);
+
+  const isExcel = /\.(xlsx|xls)$/i.test(file.name);
+
+  if (isExcel) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const XLSX = window.XLSX;
+        if (!XLSX) throw new Error("SheetJS chưa tải — reload trang và thử lại.");
+        const wb = XLSX.read(new Uint8Array(reader.result), { type: "array" });
+        log(`Excel: ${wb.SheetNames.length} sheet(s): ${wb.SheetNames.join(", ")}`);
+        selectedJson = excelToRaw(wb);
+        const { tx, stock, stores, minipc, offices, warehouses } = validateRaw(selectedJson);
+        log(`Loaded Excel OK: transactions=${tx.length}, stock=${stock.length}, stores=${stores.length}, minipc=${minipc.length}, offices=${offices.length}, warehouses=${warehouses.length}`);
+        setButtonsEnabled(true);
+      } catch (e) {
+        log(`✗ Excel lỗi: ${e?.message || e}`);
+        selectedJson = null;
+        setButtonsEnabled(false);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  } else {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        selectedJson = JSON.parse(reader.result);
+        const { tx, stock, stores, minipc, offices, warehouses } = validateRaw(selectedJson);
+        log(`Loaded JSON OK: transactions=${tx.length}, stock=${stock.length}, stores=${stores.length}, minipc=${minipc.length}, offices=${offices.length}, warehouses=${warehouses.length}`);
+        setButtonsEnabled(true);
+      } catch (e) {
+        log(`✗ JSON lỗi: ${e?.message || e}`);
+        selectedJson = null;
+        setButtonsEnabled(false);
+      }
+    };
+    reader.readAsText(file);
+  }
 }
 
 async function importCollection(colName, rows, normalizer) {

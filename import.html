@@ -48,7 +48,7 @@
 
     <div class="card">
       <div class="row" style="margin-bottom:10px">
-        <input type="file" id="fileInput" accept=".json,application/json" />
+        <input type="file" id="fileInput" accept=".json,application/json,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" />
         <button class="btn" id="btnSignIn">Đăng nhập</button>
         <button class="btn" id="btnSignOut" style="display:none">Đăng xuất</button>
       </div>
@@ -58,13 +58,15 @@
         <button class="btn" id="btnClearLog">Clear log</button>
       </div>
       <div class="sub" style="margin:0">
-        File JSON cần có format giống như biến <span class="mono">RAW_DATA</span> bạn đang có: <span class="mono">{ "transactions": [...], "stock": [...], "minipc": [...], "stores": [...] }</span>.
-        Offices/warehouses là optional.
+        Hỗ trợ <strong>JSON</strong> và <strong>Excel (.xlsx/.xls)</strong>.<br>
+        <b>Cách 1 — Sheet tên collection:</b> đặt tên sheet <span class="mono">stores</span> / <span class="mono">transactions</span> / <span class="mono">stock</span> / <span class="mono">minipc</span> / <span class="mono">offices</span> / <span class="mono">warehouses</span>.<br>
+        <b>Cách 2 — Sheet tên store code:</b> đặt tên sheet theo mã cửa hàng (VD: <span class="mono">VA19</span>, <span class="mono">VN28</span>), mỗi dòng là 1 thiết bị với cột <span class="mono">Hardware Type</span> / <span class="mono">Model</span> / <span class="mono">Qty</span> / <span class="mono">S/N</span> → tự convert thành giao dịch OUT.
       </div>
       <div class="log mono" id="log"></div>
     </div>
   </div>
 
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <script type="module" src="./js/import.js"></script>
 </body>
 </html>
