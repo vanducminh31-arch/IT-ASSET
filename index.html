@@ -248,11 +248,11 @@
       <div class="nav-section">Kho thiết bị</div>
       <div class="nav-item" data-page="transactions" id="nav-transactions">
         <span class="nav-icon">⇄</span> Giao dịch <span class="nav-count" id="cnt-tx">0</span>
-        <button class="nav-edit-btn" onclick="event.stopPropagation(); openEditPassword('transactions')" title="Chỉnh sửa"></button>
+        <button class="nav-edit-btn" onclick="event.stopPropagation(); openEditPassword('transactions')" title="Chỉnh sửa">✎</button>
       </div>
       <div class="nav-item" data-page="stock" id="nav-stock">
         <span class="nav-icon">☰</span> Tồn kho <span class="nav-count" id="cnt-stock">0</span>
-        <button class="nav-edit-btn" onclick="event.stopPropagation(); openEditPassword('stock')" title="Chỉnh sửa"></button>
+        <button class="nav-edit-btn" onclick="event.stopPropagation(); openEditPassword('stock')" title="Chỉnh sửa">✎</button>
       </div>
 
       <div class="nav-section">Stores</div>
@@ -263,18 +263,18 @@
       <div class="nav-section">Nội bộ</div>
       <div class="nav-item" data-page="offices" id="nav-offices">
         <span class="nav-icon">🏢</span> Văn phòng <span class="nav-count" id="cnt-offices">0</span>
-        <button class="nav-edit-btn" onclick="event.stopPropagation(); openEditPassword('offices')" title="Chỉnh sửa"></button>
+        <button class="nav-edit-btn" onclick="event.stopPropagation(); openEditPassword('offices')" title="Chỉnh sửa">✎</button>
       </div>
       <div class="nav-item" data-page="warehouses" id="nav-warehouses">
         <span class="nav-icon">🏭</span> Kho <span class="nav-count" id="cnt-warehouses">0</span>
-        <button class="nav-edit-btn" onclick="event.stopPropagation(); openEditPassword('warehouses')" title="Chỉnh sửa"></button>
+        <button class="nav-edit-btn" onclick="event.stopPropagation(); openEditPassword('warehouses')" title="Chỉnh sửa">✎</button>
       </div>
 
       <div style="margin-top:auto;padding:12px 16px;border-top:1px solid var(--border)">
         <div style="font-size:11px;color:var(--dim)">Phím tắt</div>
         <div style="font-size:11px;color:var(--dim);margin-top:4px"><kbd style="background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:10px">N</kbd> Thêm giao dịch</div>
         <div style="font-size:11px;color:var(--dim);margin-top:2px"><kbd style="background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:10px">Esc</kbd> Đóng modal</div>
-
+        <button id="btnToggleEditMode" onclick="handleToggleEditMode()" style="display:none;margin-top:10px;width:100%;text-align:left;background:transparent;border:1px solid var(--border);color:var(--muted);font-size:11px;padding:5px 8px;border-radius:4px;cursor:pointer;transition:border-color .15s,color .15s" title="Mở chế độ chỉnh sửa Pro">🔒 Mở chế độ Pro</button>
       </div>
     </div>
 

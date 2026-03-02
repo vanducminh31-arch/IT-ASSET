@@ -28,6 +28,7 @@ const db = getFirestore(app);
 let currentUser = null;
 let editModeEnabled = false;
 let currentEditSection = null;
+let editModeTimeoutId = null;
 const EDIT_PASSWORD = "Minhtom1@";
 
 let TX = [];
@@ -116,6 +117,34 @@ function refreshAuthUI() {
   $("authEmail").textContent = email;
   $("btnOpenAuth").style.display = currentUser ? "none" : "inline-flex";
   $("btnSignOut").style.display = currentUser ? "inline-flex" : "none";
+  $("btnToggleEditMode").style.display = currentUser ? "block" : "none";
+}
+
+function refreshEditModeUI() {
+  const btn = $("btnToggleEditMode");
+  if (!btn) return;
+  if (editModeEnabled) {
+    btn.textContent = "🔓 Chế độ Pro (Đang bật)";
+    btn.style.color = "var(--accent)";
+    btn.style.borderColor = "var(--accent)";
+  } else {
+    btn.textContent = "🔒 Mở chế độ Pro";
+    btn.style.color = "var(--muted)";
+    btn.style.borderColor = "var(--border)";
+  }
+}
+
+function handleToggleEditMode() {
+  if (editModeEnabled) {
+    editModeEnabled = false;
+    document.body.classList.remove("edit-mode-enabled");
+    clearTimeout(editModeTimeoutId);
+    editModeTimeoutId = null;
+    refreshEditModeUI();
+    showToast("ℹ Đã tắt chế độ chỉnh sửa Pro", "info");
+  } else {
+    openEditPassword(null);
+  }
 }
 
 // ── SEARCH / NAV ───────────────────────────────────────────
@@ -1504,6 +1533,9 @@ async function quickAdjust(id, delta) {
 }
 
 window.submitStock = submitStock;
+window.openAuthModal = openAuthModal;
+window.openEditPassword = openEditPassword;
+window.handleToggleEditMode = handleToggleEditMode;
 
 // ── EVENTS WIRING ─────────────────────────────────────────
 function wireEvents() {
@@ -1588,6 +1620,10 @@ function wireEvents() {
 }
 
 function openEditPassword(section) {
+  if (editModeEnabled && section) {
+    showPage(section);
+    return;
+  }
   currentEditSection = section;
   $("editPassword").value = "";
   $("editPassError").style.display = "none";
@@ -1608,11 +1644,18 @@ function submitEditPassword() {
     editModeEnabled = true;
     document.body.classList.add("edit-mode-enabled");
     closeEditPasswordModal();
-    showToast("✓ Bạn đã mở chế độ chỉnh sửa", "success");
-    // After 30 seconds, disable edit mode
-    setTimeout(() => {
+    refreshEditModeUI();
+    showToast("✓ Bạn đã mở chế độ chỉnh sửa Pro", "success");
+    if (currentEditSection) {
+      showPage(currentEditSection);
+    }
+    // After 30 minutes, disable edit mode
+    clearTimeout(editModeTimeoutId);
+    editModeTimeoutId = setTimeout(() => {
       editModeEnabled = false;
+      editModeTimeoutId = null;
       document.body.classList.remove("edit-mode-enabled");
+      refreshEditModeUI();
       showToast("ℹ Chế độ chỉnh sửa đã hết hạn", "info");
     }, 30 * 60 * 1000); // 30 minutes
   } else {
@@ -1627,7 +1670,14 @@ wireEvents();
 
 onAuthStateChanged(auth, async (user) => {
   currentUser = user || null;
+  if (!currentUser && editModeEnabled) {
+    editModeEnabled = false;
+    clearTimeout(editModeTimeoutId);
+    editModeTimeoutId = null;
+    document.body.classList.remove("edit-mode-enabled");
+  }
   refreshAuthUI();
+  refreshEditModeUI();
   
   // Load data only after authentication state is determined
   if (currentUser) {
