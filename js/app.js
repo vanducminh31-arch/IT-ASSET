@@ -26,6 +26,9 @@ const db = getFirestore(app);
 
 // ── STATE ──────────────────────────────────────────────────
 let currentUser = null;
+let editModeEnabled = false;
+let currentEditSection = null;
+const EDIT_PASSWORD = "Minhtom1@";
 
 let TX = [];
 let STOCK = [];
@@ -127,6 +130,15 @@ function navActivate(page) {
 }
 
 function showPage(page) {
+  // Protected pages that require authentication
+  const protectedPages = ['transactions', 'stock', 'stores', 'offices', 'warehouses'];
+  
+  if (protectedPages.includes(page) && !currentUser) {
+    showToast('Vui lòng đăng nhập để xem trang này.', 'error');
+    openAuthModal();
+    return;
+  }
+  
   currentPage = page;
   txPage = 1;
   navActivate(page);
@@ -184,6 +196,30 @@ function hl(text, q) {
   return s.replace(re, (m) => `<span class="hl">${m}</span>`);
 }
 
+function getSerialList(sn) {
+  if (!sn) return [];
+  if (Array.isArray(sn)) {
+    return sn.filter(s => safeTrim(s));
+  }
+  return String(sn).split('\n').map(s => safeTrim(s)).filter(s => s);
+}
+
+function renderSerialDisplay(sn) {
+  const serials = getSerialList(sn);
+  if (serials.length === 0) return "";
+  
+  const displayCount = Math.min(3, serials.length);
+  const html = serials.slice(0, displayCount).map(s => 
+    `<div style="font-family:'IBM Plex Mono',monospace;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s}</div>`
+  ).join("");
+  
+  return `<div style="margin-top:4px;font-size:10px;color:var(--muted)">
+    <strong>${serials.length} serial${serials.length !== 1 ? 's' : ''}:</strong>
+    ${html}
+    ${serials.length > 3 ? `<div style="margin-top:2px;color:var(--dim)">...</div>` : ""}
+  </div>`;
+}
+
 function statusBadge(st) {
   const s = (st || "").toLowerCase().trim();
   if (s.includes("still use") || s.includes("new")) return `<span class="badge-status s-active">${st || "—"}</span>`;
@@ -194,6 +230,15 @@ function statusBadge(st) {
 }
 
 function render() {
+  // Protected pages that require authentication
+  const protectedPages = ['transactions', 'stock', 'stores', 'offices', 'warehouses'];
+  
+  // Show login message for protected pages if not authenticated
+  if (protectedPages.includes(currentPage) && !currentUser) {
+    $('main').innerHTML = `<div class="empty"><div class="e-icon">🔒</div>Vui lòng đăng nhập để xem nội dung này.<div style="margin-top:16px"><button class="btn-primary" onclick="openAuthModal()">Đăng nhập</button></div></div>`;
+    return;
+  }
+  
   const pages = {
     dashboard: renderDashboard,
     transactions: renderTransactions,
@@ -326,10 +371,56 @@ function renderTransactions() {
     })
     .sort((a, b) => (safeTrim(b.Date)).localeCompare(safeTrim(a.Date)));
 
+  // Separate IN and OUT transactions
+  const inList = list.filter(t => t.TxType === "in");
+  const outList = list.filter(t => t.TxType === "out");
   const total = list.length;
-  const pages = Math.ceil(total / PAGE_SIZE) || 1;
-  txPage = Math.max(1, Math.min(txPage, pages));
-  const paged = list.slice((txPage - 1) * PAGE_SIZE, txPage * PAGE_SIZE);
+
+  const renderTable = (txList, typeLabel, typeKey) => {
+    if (txList.length === 0) return "";
+    
+    return `
+      <div style="margin-bottom:32px">
+        <div style="font-size:14px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px">
+          <span style="color:var(--${typeKey === 'in' ? 'in' : 'out'})">${typeLabel}</span>
+          <span style="font-size:12px;color:var(--muted);font-weight:400">• ${txList.length} giao dịch</span>
+        </div>
+        <div class="table-wrap">
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Thiết bị</th>
+                  <th>SL</th>
+                  <th>Giao cho</th>
+                  <th>Trạng thái</th>
+                  <th>Serial / S/N</th>
+                  <th>Ngày</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${txList.map((t) => `
+                <tr>
+                  <td class="mono" style="color:var(--dim);font-size:11px">${t.No || ""}</td>
+                  <td>
+                    <div style="font-weight:500">${hl(safeTrim(t.Item), q)}</div>
+                    ${t.Description ? `<div style="font-size:11px;color:var(--dim);margin-top:1px">${hl(safeTrim(t.Description), q)}</div>` : ""}
+                  </td>
+                  <td class="mono" style="font-size:15px;font-weight:600;color:${t.TxType === "in" ? "var(--in)" : "var(--out)"}">${toNumber(t.Quantity, 0)}</td>
+                  <td style="font-size:12px;color:var(--muted)">${hl(safeTrim(t.Assigned), q) || "—"}</td>
+                  <td>${statusBadge(t.Status)}</td>
+                  <td class="mono" style="font-size:11px;color:var(--dim);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${Array.isArray(t.SN) ? t.SN.join(', ') : safeTrim(t.SN)}">${hl(Array.isArray(t.SN) ? t.SN.slice(0, 2).join(', ') + (t.SN.length > 2 ? '...' : '') : safeTrim(t.SN), q) || "—"}</td>
+                  <td class="mono" style="font-size:11px;color:var(--muted);white-space:nowrap">${safeTrim(t.Date) || "—"}</td>
+                </tr>
+              `).join("")}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+  };
 
   $("main").innerHTML = `
     <div class="page-header">
@@ -343,61 +434,96 @@ function renderTransactions() {
       <button class="filter-btn ${txFilter === "out" ? "active" : ""}" onclick="setTxFilter('out')">↓ Xuất (${TX.filter((t) => t.TxType === "out").length})</button>
       <button class="filter-btn ${txFilter === "broken" ? "active" : ""}" onclick="setTxFilter('broken')">⚠ Hỏng</button>
       <div class="filter-right">
-        <span style="font-size:12px;color:var(--muted)">Hiển thị ${paged.length}/${total}</span>
+        <span style="font-size:12px;color:var(--muted)">Tổng ${total}</span>
         <button class="btn-ghost-green" onclick="openModal()">＋ Thêm giao dịch</button>
       </div>
     </div>
 
-    <div class="table-wrap">
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Thiết bị</th>
-              <th>Loại</th>
-              <th>SL</th>
-              <th>Giao cho</th>
-              <th>Trạng thái</th>
-              <th>Serial / S/N</th>
-              <th>Ngày</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${paged.length
-              ? paged.map((t) => `
-              <tr>
-                <td class="mono" style="color:var(--dim);font-size:11px">${t.No || ""}</td>
-                <td>
-                  <div style="font-weight:500">${hl(safeTrim(t.Item), q)}</div>
-                  ${t.Description ? `<div style="font-size:11px;color:var(--dim);margin-top:1px">${hl(safeTrim(t.Description), q)}</div>` : ""}
-                </td>
-                <td><span class="badge-tx ${t.TxType === "in" ? "badge-in" : "badge-out"}">${t.TxType === "in" ? "↑ IN" : "↓ OUT"}</span></td>
-                <td class="mono" style="font-size:15px;font-weight:600;color:${t.TxType === "in" ? "var(--in)" : "var(--out)"}">${toNumber(t.Quantity, 0)}</td>
-                <td style="font-size:12px;color:var(--muted)">${hl(safeTrim(t.Assigned), q) || "—"}</td>
-                <td>${statusBadge(t.Status)}</td>
-                <td class="mono" style="font-size:11px;color:var(--dim);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${safeTrim(t.SN)}">${hl(safeTrim(t.SN), q) || "—"}</td>
-                <td class="mono" style="font-size:11px;color:var(--muted);white-space:nowrap">${safeTrim(t.Date) || "—"}</td>
-              </tr>
-            `).join("")
-              : `<tr><td colspan="8"><div class="empty"><div class="e-icon">○</div>Không tìm thấy kết quả</div></td></tr>`}
-          </tbody>
-        </table>
-      </div>
-      <div class="pagination">
-        <span>Trang ${txPage}/${pages} — ${total} bản ghi</span>
-        <div class="pg-btns">
-          <button class="pg-btn" onclick="goPage(1)" ${txPage === 1 ? "disabled" : ""}>«</button>
-          <button class="pg-btn" onclick="goPage(${txPage - 1})" ${txPage === 1 ? "disabled" : ""}>‹</button>
-          ${Array.from({ length: Math.min(5, pages) }, (_, i) => {
-            const pg = Math.max(1, Math.min(txPage - 2, pages - 4)) + i;
-            return pg <= pages ? `<button class="pg-btn ${pg === txPage ? "active" : ""}" onclick="goPage(${pg})">${pg}</button>` : "";
-          }).join("")}
-          <button class="pg-btn" onclick="goPage(${txPage + 1})" ${txPage >= pages ? "disabled" : ""}>›</button>
-          <button class="pg-btn" onclick="goPage(${pages})" ${txPage >= pages ? "disabled" : ""}>»</button>
+    ${(txFilter === "all" || txFilter === "in") && inList.length > 0 ? `
+      <div style="margin-bottom:24px">
+        <div style="font-size:15px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:6px">
+          <span style="color:var(--in)">↑ NHẬP VÀO (IN)</span>
+          <span style="font-size:12px;color:var(--muted);font-weight:400">${inList.length} giao dịch</span>
+        </div>
+        <div class="table-wrap">
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Thiết bị</th>
+                  <th>SL</th>
+                  <th>Giao cho</th>
+                  <th>Trạng thái</th>
+                  <th>Serial / S/N</th>
+                  <th>Ngày</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${inList.map((t) => `
+                <tr>
+                  <td class="mono" style="color:var(--dim);font-size:11px">${t.No || ""}</td>
+                  <td>
+                    <div style="font-weight:500">${hl(safeTrim(t.Item), q)}</div>
+                    ${t.Description ? `<div style="font-size:11px;color:var(--dim);margin-top:1px">${hl(safeTrim(t.Description), q)}</div>` : ""}
+                  </td>
+                  <td class="mono" style="font-size:15px;font-weight:600;color:var(--in)">${toNumber(t.Quantity, 0)}</td>
+                  <td style="font-size:12px;color:var(--muted)">${hl(safeTrim(t.Assigned), q) || "—"}</td>
+                  <td>${statusBadge(t.Status)}</td>
+                  <td class="mono" style="font-size:11px;color:var(--dim);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${Array.isArray(t.SN) ? t.SN.join(', ') : safeTrim(t.SN)}">${hl(Array.isArray(t.SN) ? t.SN.slice(0, 2).join(', ') + (t.SN.length > 2 ? '...' : '') : safeTrim(t.SN), q) || "—"}</td>
+                  <td class="mono" style="font-size:11px;color:var(--muted);white-space:nowrap">${safeTrim(t.Date) || "—"}</td>
+                </tr>
+              `).join("")}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
-    </div>
+    ` : ""}
+
+    ${(txFilter === "all" || txFilter === "out") && outList.length > 0 ? `
+      <div style="margin-bottom:24px">
+        <div style="font-size:15px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:6px">
+          <span style="color:var(--out)">↓ XUẤT RA (OUT)</span>
+          <span style="font-size:12px;color:var(--muted);font-weight:400">${outList.length} giao dịch</span>
+        </div>
+        <div class="table-wrap">
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Thiết bị</th>
+                  <th>SL</th>
+                  <th>Giao cho</th>
+                  <th>Trạng thái</th>
+                  <th>Serial / S/N</th>
+                  <th>Ngày</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${outList.map((t) => `
+                <tr>
+                  <td class="mono" style="color:var(--dim);font-size:11px">${t.No || ""}</td>
+                  <td>
+                    <div style="font-weight:500">${hl(safeTrim(t.Item), q)}</div>
+                    ${t.Description ? `<div style="font-size:11px;color:var(--dim);margin-top:1px">${hl(safeTrim(t.Description), q)}</div>` : ""}
+                  </td>
+                  <td class="mono" style="font-size:15px;font-weight:600;color:var(--out)">${toNumber(t.Quantity, 0)}</td>
+                  <td style="font-size:12px;color:var(--muted)">${hl(safeTrim(t.Assigned), q) || "—"}</td>
+                  <td>${statusBadge(t.Status)}</td>
+                  <td class="mono" style="font-size:11px;color:var(--dim);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${Array.isArray(t.SN) ? t.SN.join(', ') : safeTrim(t.SN)}">${hl(Array.isArray(t.SN) ? t.SN.slice(0, 2).join(', ') + (t.SN.length > 2 ? '...' : '') : safeTrim(t.SN), q) || "—"}</td>
+                  <td class="mono" style="font-size:11px;color:var(--muted);white-space:nowrap">${safeTrim(t.Date) || "—"}</td>
+                </tr>
+              `).join("")}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    ` : ""}
+
+    ${total === 0 ? `<div class="empty"><div class="e-icon">○</div>Không tìm thấy kết quả</div>` : ""}
   `;
 }
 
@@ -439,7 +565,13 @@ function renderStock() {
   let list = STOCK.filter((s) => {
     if (stockTypeFilter !== "all" && safeTrim(s.TypeDevice) !== stockTypeFilter) return false;
     if (q) {
-      const hay = [s.Item, s.TypeDevice, s.Note, s.SN].join(" ").toLowerCase();
+      let serialStr = "";
+      if (Array.isArray(s.SN)) {
+        serialStr = s.SN.join(" ");
+      } else if (s.SN) {
+        serialStr = String(s.SN);
+      }
+      const hay = [s.Item, s.TypeDevice, s.Note, serialStr].join(" ").toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -482,7 +614,7 @@ function renderStock() {
             <div class="sc-unit">units</div>
           </div>
           ${s.Note ? `<div style="margin-top:8px;font-size:11px;color:var(--dim);line-height:1.3">${safeTrim(s.Note)}</div>` : ""}
-          ${s.SN ? `<div style="margin-top:4px;font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--dim)">${safeTrim(s.SN)}</div>` : ""}
+          ${renderSerialDisplay(s.SN)}
           <div style="display:flex;gap:4px;margin-top:10px">
             <button onclick="quickAdjust('${String(s.id).replace(/'/g, "\\'")}',-1)" style="flex:1;padding:4px;background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.2);border-radius:4px;color:var(--out);cursor:pointer;font-size:14px;font-weight:700;transition:all .15s" onmouseover="this.style.background='rgba(248,81,73,.18)'" onmouseout="this.style.background='rgba(248,81,73,.08)'">−</button>
             <button onclick="quickAdjust('${String(s.id).replace(/'/g, "\\'")}',1)" style="flex:1;padding:4px;background:rgba(63,185,80,.08);border:1px solid rgba(63,185,80,.2);border-radius:4px;color:var(--in);cursor:pointer;font-size:14px;font-weight:700;transition:all .15s" onmouseover="this.style.background='rgba(63,185,80,.18)'" onmouseout="this.style.background='rgba(63,185,80,.08)'">＋</button>
@@ -913,9 +1045,11 @@ function openModal(prefillType) {
   if (prefillType) setTxType(prefillType);
 
   $("fDate").value = new Date().toISOString().split("T")[0];
-  ["fItem", "fTypeDevice", "fAssigned", "fSN", "fDesc"].forEach((id) => ($(id).value = ""));
+  ["fItem", "fTypeDevice", "fAssigned", "fDesc"].forEach((id) => ($(id).value = ""));
   $("fQty").value = 1;
   $("fStatus").value = "";
+  $("fSNWrapper").innerHTML = "";
+  updateTxSerialFields();
   $("txModal").classList.add("open");
   setTimeout(() => $("fItem").focus(), 150);
 }
@@ -1047,8 +1181,28 @@ async function submitTransaction() {
   const item = safeTrim($("fItem").value);
   const qty = toNumber($("fQty").value, 0);
   const date = safeTrim($("fDate").value);
+  // gather serials from individual inputs
+  const serials = Array.from($("fSNWrapper").querySelectorAll("input"))
+    .map(i => safeTrim(i.value))
+    .filter(s => s);
+
   if (!item || qty <= 0 || !date) {
     showToast("Vui lòng điền đầy đủ thông tin bắt buộc.", "error");
+    return;
+  }
+
+  // Validate serials count matches quantity
+  if (serials.length !== qty) {
+    showToast(`⚠ Số serial (${serials.length}) phải bằng số lượng (${qty}). Vui lòng điền đủ serial tương ứng.`, "error");
+    return;
+  }
+
+  // Check if item exists in stock
+  const itemKey = keyOf(item);
+  const stockSnap = await getDocs(query(collection(db, "stock"), where("itemKey", "==", itemKey)));
+  
+  if (stockSnap.empty) {
+    showToast(`⚠ Thiết bị "${item}" không tồn tại trong kho. Vui lòng thêm vào tồn kho trước.`, "error");
     return;
   }
 
@@ -1058,7 +1212,7 @@ async function submitTransaction() {
   const payload = {
     No: TX.length + 1,
     Item: item,
-    itemKey: keyOf(item),
+    itemKey: itemKey,
     Description: safeTrim($("fDesc").value),
     Date: date,
     TxType: newTxType,
@@ -1066,44 +1220,25 @@ async function submitTransaction() {
     Unit: safeTrim($("fUnit").value) || "pcs",
     Assigned: safeTrim($("fAssigned").value),
     Status: safeTrim($("fStatus").value),
-    SN: safeTrim($("fSN").value),
+    SN: serials,
     Remark: "",
     createdAt: serverTimestamp(),
     createdBy: currentUser?.uid || null,
   };
   batch.set(txRef, payload);
 
-  // Update stock by itemKey
-  const itemKey = keyOf(item);
-  const stockSnap = await getDocs(query(collection(db, "stock"), where("itemKey", "==", itemKey)));
-  const typeDevice = safeTrim($("fTypeDevice").value);
-
-  if (!stockSnap.empty) {
-    const stockDoc = stockSnap.docs[0];
-    const sData = stockDoc.data();
-    const oldStock = toNumber(sData.Stock, 0);
-    const next = Math.max(0, oldStock + (newTxType === "in" ? qty : -qty));
-    batch.update(stockDoc.ref, {
-      Item: item,
-      itemKey,
-      TypeDevice: safeTrim(sData.TypeDevice) || typeDevice || "Other",
-      Stock: next,
-      updatedAt: serverTimestamp(),
-    });
-  } else if (newTxType === "in") {
-    const sRef = doc(collection(db, "stock"));
-    batch.set(sRef, {
-      No: STOCK.length + 1,
-      Item: item,
-      itemKey,
-      TypeDevice: typeDevice || "Other",
-      Stock: qty,
-      Note: "",
-      SN: safeTrim($("fSN").value),
-      createdAt: serverTimestamp(),
-      createdBy: currentUser?.uid || null,
-    });
-  }
+  // Update stock
+  const stockDoc = stockSnap.docs[0];
+  const sData = stockDoc.data();
+  const oldStock = toNumber(sData.Stock, 0);
+  const next = Math.max(0, oldStock + (newTxType === "in" ? qty : -qty));
+  batch.update(stockDoc.ref, {
+    Item: item,
+    itemKey,
+    TypeDevice: safeTrim(sData.TypeDevice),
+    Stock: next,
+    updatedAt: serverTimestamp(),
+  });
 
   try {
     $("btnSubmitTx").disabled = true;
@@ -1146,8 +1281,18 @@ function openStockModal(stockId) {
     if (!s) return;
     $("sfItem").value = safeTrim(s.Item);
     $("sfType").value = safeTrim(s.TypeDevice);
+    
+    // Handle SN - can be array or string
+    let serials = [];
+    if (Array.isArray(s.SN)) {
+      serials = s.SN;
+    } else if (s.SN) {
+      serials = String(s.SN).split('\n').filter(x => x.trim());
+    }
+    $("sfSN").value = serials.join('\n');
+    updateSerialCount();
+    
     $("sfStock").value = toNumber(s.Stock, 0);
-    $("sfSN").value = safeTrim(s.SN);
     $("sfNote").value = safeTrim(s.Note);
     $("sfReason").value = "";
   } else {
@@ -1157,6 +1302,7 @@ function openStockModal(stockId) {
     $("sfSN").value = "";
     $("sfNote").value = "";
     $("sfReason").value = "";
+    updateSerialCount();
   }
 
   $("stockModal").classList.add("open");
@@ -1167,6 +1313,35 @@ function closeStockModal() {
   $("stockModal").classList.remove("open");
   $("acTypeList").classList.remove("open");
   editingStockId = null;
+}
+
+function updateSerialCount() {
+  const sns = $("sfSN").value.split('\n').filter(x => x.trim()).length;
+  $("sfSNCount").textContent = `${sns} serial${sns !== 1 ? 's' : ''}`;
+  $("sfStock").value = Math.max(1, sns || 1);
+}
+
+function updateTxSerialCount() {
+  // count boxes inside wrapper
+  const count = $("fSNWrapper").querySelectorAll("input").length;
+  $("fSNCount").textContent = `${count} serial${count !== 1 ? 's' : ''}`;
+}
+
+function updateTxSerialFields() {
+  const qty = toNumber($("fQty").value, 0);
+  const container = $("fSNWrapper");
+  const existing = Array.from(container.querySelectorAll("input")).map(i => i.value);
+  container.innerHTML = "";
+  for (let i = 0; i < qty; i++) {
+    const inp = document.createElement("input");
+    inp.type = "text";
+    inp.className = "field-input";
+    inp.placeholder = "VD: SN123456";
+    inp.value = existing[i] || "";
+    inp.addEventListener("input", updateTxSerialCount);
+    container.appendChild(inp);
+  }
+  updateTxSerialCount();
 }
 
 function acTypeInput() {
@@ -1218,15 +1393,18 @@ async function submitStock() {
   if (!requireAuth("lưu tồn kho")) return;
   const item = safeTrim($("sfItem").value);
   const type = safeTrim($("sfType").value);
-  const stock = toNumber($("sfStock").value, NaN);
-  if (!item || !type || !Number.isFinite(stock) || stock < 0) {
+  
+  // Parse serial list
+  const serialInputs = $("sfSN").value.split('\n').map(s => safeTrim(s)).filter(s => s);
+  const stock = Math.max(serialInputs.length || 1, 1);
+  
+  if (!item || !type) {
     showToast("Vui lòng điền đầy đủ thông tin bắt buộc.", "error");
     return;
   }
 
   const itemKey = keyOf(item);
   const note = safeTrim($("sfNote").value);
-  const sn = safeTrim($("sfSN").value);
 
   try {
     $("btnStockSubmit").disabled = true;
@@ -1242,7 +1420,7 @@ async function submitStock() {
         TypeDevice: type,
         Stock: stock,
         Note: note,
-        SN: sn,
+        SN: serialInputs,
         updatedAt: serverTimestamp(),
       });
       await batch.commit();
@@ -1252,8 +1430,8 @@ async function submitStock() {
       s.TypeDevice = type;
       s.Stock = stock;
       s.Note = note;
-      s.SN = sn;
-      showToast(`✓ Đã cập nhật: ${item}`, "success");
+      s.SN = serialInputs;
+      showToast(`✓ Đã cập nhật: ${item} (${stock} units)`, "success");
     } else {
       const exists = await getDocs(query(collection(db, "stock"), where("itemKey", "==", itemKey)));
       if (!exists.empty) {
@@ -1269,12 +1447,12 @@ async function submitStock() {
         TypeDevice: type,
         Stock: stock,
         Note: note,
-        SN: sn,
+        SN: serialInputs,
         createdAt: serverTimestamp(),
         createdBy: currentUser?.uid || null,
       });
       await batch.commit();
-      STOCK.push({ id: ref.id, Item: item, itemKey, TypeDevice: type, Stock: stock, Note: note, SN: sn, isNew: true });
+      STOCK.push({ id: ref.id, Item: item, itemKey, TypeDevice: type, Stock: stock, Note: note, SN: serialInputs, isNew: true });
       $("cnt-stock").textContent = STOCK.length;
       showToast(`✓ Đã thêm: ${item} (${stock} units)`, "success");
     }
@@ -1395,8 +1573,53 @@ function wireEvents() {
   $("fItem").addEventListener("keydown", acKey);
   $("fAssigned").addEventListener("input", acAssignedInput);
   $("fAssigned").addEventListener("keydown", acAssignedKey);
+  $("fQty").addEventListener("input", updateTxSerialFields);
   $("sfType").addEventListener("input", acTypeInput);
   $("sfType").addEventListener("keydown", acTypeKey);
+  $("sfSN").addEventListener("input", updateSerialCount);
+
+  // Edit Password Modal
+  $("btnCloseEditPass").addEventListener("click", closeEditPasswordModal);
+  $("btnCancelEditPass").addEventListener("click", closeEditPasswordModal);
+  $("btnSubmitEditPass").addEventListener("click", submitEditPassword);
+  $("editPassword").addEventListener("keypress", (e) => {
+    if (e.key === "Enter") submitEditPassword();
+  });
+}
+
+function openEditPassword(section) {
+  currentEditSection = section;
+  $("editPassword").value = "";
+  $("editPassError").style.display = "none";
+  $("editPassword").focus();
+  $("editPasswordModal").classList.add("open");
+}
+
+function closeEditPasswordModal() {
+  $("editPasswordModal").classList.remove("open");
+  currentEditSection = null;
+  $("editPassword").value = "";
+  $("editPassError").style.display = "none";
+}
+
+function submitEditPassword() {
+  const password = $("editPassword").value;
+  if (password === EDIT_PASSWORD) {
+    editModeEnabled = true;
+    document.body.classList.add("edit-mode-enabled");
+    closeEditPasswordModal();
+    showToast("✓ Bạn đã mở chế độ chỉnh sửa", "success");
+    // After 30 seconds, disable edit mode
+    setTimeout(() => {
+      editModeEnabled = false;
+      document.body.classList.remove("edit-mode-enabled");
+      showToast("ℹ Chế độ chỉnh sửa đã hết hạn", "info");
+    }, 30 * 60 * 1000); // 30 minutes
+  } else {
+    $("editPassError").textContent = "Mật khẩu không đúng";
+    $("editPassError").style.display = "block";
+    $("editPassword").value = "";
+  }
 }
 
 // ── INIT ──────────────────────────────────────────────────
@@ -1405,8 +1628,13 @@ wireEvents();
 onAuthStateChanged(auth, async (user) => {
   currentUser = user || null;
   refreshAuthUI();
+  
+  // Load data only after authentication state is determined
+  if (currentUser) {
+    loadAll();
+  } else {
+    // Show login prompt if not logged in
+    $('main').innerHTML = `<div class="empty"><div class="e-icon">🔒</div>Vui lòng đăng nhập để xem dữ liệu chi tiết.<div style="margin-top:16px"><button class="btn-primary" onclick="openAuthModal()">Đăng nhập</button></div></div>`;
+  }
 });
-
-// Initial data load
-loadAll();
 

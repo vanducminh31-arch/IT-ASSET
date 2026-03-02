@@ -1,0 +1,50 @@
+{
+  "warehouses": [
+    {
+      "code": "GEODIS",
+      "name": "Geodis"
+    }
+  ],
+  "stock": [
+    { "Item": "Latitude 3450", "TypeDevice": "Laptop", "Stock": 1, "SN": "3XMPP84", "Warehouse": "GEODIS" },
+    { "Item": "Latitude 3450", "TypeDevice": "Laptop", "Stock": 1, "SN": "JJTQSP84", "Warehouse": "GEODIS" },
+    { "Item": "Latitude 3450", "TypeDevice": "Laptop", "Stock": 1, "SN": "9PKSBB4", "Warehouse": "GEODIS" },
+    { "Item": "HP Pro Tower 400 G9 PCI Desktop PC", "TypeDevice": "Desktop", "Stock": 1, "SN": "4CE425CCX1", "Warehouse": "GEODIS" },
+    { "Item": "HP Pro Tower 400 G9 PCI Desktop PC", "TypeDevice": "Desktop", "Stock": 1, "SN": "4CE425CCXS", "Warehouse": "GEODIS" },
+    { "Item": "HP Pro Tower 400 G9 PCI Desktop PC", "TypeDevice": "Desktop", "Stock": 1, "SN": "4CE425CCXN0", "Warehouse": "GEODIS" },
+    { "Item": "HP Pro Tower 400 G9 PCI Desktop PC", "TypeDevice": "Desktop", "Stock": 1, "SN": "4CE425CCXP2", "Warehouse": "GEODIS" },
+    { "Item": "HP P204v", "TypeDevice": "Monitor", "Stock": 1, "SN": "3CQ41608RT", "Warehouse": "GEODIS" },
+    { "Item": "HP P204v", "TypeDevice": "Monitor", "Stock": 1, "SN": "3CQ41805TI", "Warehouse": "GEODIS" },
+    { "Item": "HP P204v", "TypeDevice": "Monitor", "Stock": 1, "SN": "3CQ41608TQ", "Warehouse": "GEODIS" },
+    { "Item": "HP P204v", "TypeDevice": "Monitor", "Stock": 1, "SN": "3CQ41608S2", "Warehouse": "GEODIS" },
+    { "Item": "Samsung Galaxy Tab S10 FE", "TypeDevice": "Tablet", "Stock": 1, "SN": "3561604620183834", "Warehouse": "GEODIS" },
+    { "Item": "Samsung Galaxy Tab S10 FE", "TypeDevice": "Tablet", "Stock": 1, "SN": "3561604620281834", "Warehouse": "GEODIS" },
+    { "Item": "Postek printer", "TypeDevice": "Printer", "Stock": 1, "SN": "I1624C0018", "Warehouse": "GEODIS" },
+    { "Item": "Postek printer", "TypeDevice": "Printer", "Stock": 1, "SN": "I621C0029", "Warehouse": "GEODIS" },
+    { "Item": "HPE Aruba Networking AP-535 (RW)", "TypeDevice": "Network", "Stock": 1, "SN": "VNL65W944L", "Warehouse": "GEODIS" },
+    { "Item": "HPE Aruba Networking AP-535 (RW)", "TypeDevice": "Network", "Stock": 1, "SN": "VNK69KW4T4", "Warehouse": "GEODIS" },
+    { "Item": "HPE Aruba Networking AP-535 (RW)", "TypeDevice": "Network", "Stock": 1, "SN": "VNK9K9W0L3", "Warehouse": "GEODIS" },
+    { "Item": "HPE Aruba Networking AP-535 (RW)", "TypeDevice": "Network", "Stock": 1, "SN": "VNL5K9W046", "Warehouse": "GEODIS" },
+    { "Item": "HPE Aruba Networking AP-535 (RW)", "TypeDevice": "Network", "Stock": 1, "SN": "CN6K9W48Y", "Warehouse": "GEODIS" },
+    { "Item": "HPE Aruba Networking AP-535 (RW)", "TypeDevice": "Network", "Stock": 1, "SN": "VNK1K9W0ZG", "Warehouse": "GEODIS" },
+    { "Item": "Aruba 6100 48G CL4", "TypeDevice": "Network", "Stock": 1, "SN": "CN31KNDENV", "Warehouse": "GEODIS" },
+    { "Item": "Aruba 6100 48G CL4", "TypeDevice": "Network", "Stock": 1, "SN": "CN31KNDGZT", "Warehouse": "GEODIS" },
+    { "Item": "HPE Aruba Compatible", "TypeDevice": "Network", "Stock": 1, "SN": "F21400553315F2140055314", "Warehouse": "GEODIS" },
+    { "Item": "FortGate-60F Firewall", "TypeDevice": "Network", "Stock": 1, "SN": "FG160FTK240321195", "Warehouse": "GEODIS" },
+    { "Item": "May in Brother MFC-L5710DN", "TypeDevice": "Printer", "Stock": 1, "SN": "E8175C4N220073", "Warehouse": "GEODIS" },
+    { "Item": "Zebra Scanner DS2278", "TypeDevice": "Scanner", "Stock": 1, "SN": "S25151523700803", "Warehouse": "GEODIS" },
+    { "Item": "Zebra Scanner DS2278", "TypeDevice": "Scanner", "Stock": 1, "SN": "S25142523704262", "Warehouse": "GEODIS" },
+    { "Item": "Zebra Scanner DS2278", "TypeDevice": "Scanner", "Stock": 1, "SN": "S25151523700819", "Warehouse": "GEODIS" },
+    { "Item": "Zebra Scanner DS2278", "TypeDevice": "Scanner", "Stock": 1, "SN": "S25142523704260", "Warehouse": "GEODIS" },
+    { "Item": "Zebra Scanner DS2278", "TypeDevice": "Scanner", "Stock": 1, "SN": "S25151523700859", "Warehouse": "GEODIS" },
+    { "Item": "Zebra Scanner DS2278", "TypeDevice": "Scanner", "Stock": 1, "SN": "S25142523704190", "Warehouse": "GEODIS" },
+    { "Item": "Zebra Scanner DS2278", "TypeDevice": "Scanner", "Stock": 1, "SN": "S25151523700789", "Warehouse": "GEODIS" },
+    { "Item": "Zebra Scanner DS2278", "TypeDevice": "Scanner", "Stock": 1, "SN": "S25142523704258", "Warehouse": "GEODIS" },
+    { "Item": "Zebra Mobile Computer TC22", "TypeDevice": "Device", "Stock": 1, "SN": "S25199524701778", "Warehouse": "GEODIS" },
+    { "Item": "Zebra Mobile Computer TC22", "TypeDevice": "Device", "Stock": 1, "SN": "S25199524701876", "Warehouse": "GEODIS" },
+    { "Item": "Zebra Mobile Computer TC22", "TypeDevice": "Device", "Stock": 1, "SN": "PWR-WUA5V12W0US", "Warehouse": "GEODIS" },
+    { "Item": "Zebra Mobile Computer TC22", "TypeDevice": "Device", "Stock": 1, "SN": "250755684", "Warehouse": "GEODIS" },
+    { "Item": "Zebra Mobile Computer TC22", "TypeDevice": "Device", "Stock": 1, "SN": "PWR-WUA5V12W0US", "Warehouse": "GEODIS" },
+    { "Item": "Zebra Mobile Computer TC22", "TypeDevice": "Device", "Stock": 1, "SN": "250755628", "Warehouse": "GEODIS" }
+  ]
+}
