@@ -196,8 +196,13 @@ function onSearch() {
 
 // ── FIRESTORE LOAD ─────────────────────────────────────────
 async function loadCollection(name) {
-  const snap = await getDocs(collection(db, name));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  try {
+    const snap = await getDocs(collection(db, name));
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    console.warn(`loadCollection("${name}") failed:`, e?.message || e);
+    return [];
+  }
 }
 
 async function loadAll() {

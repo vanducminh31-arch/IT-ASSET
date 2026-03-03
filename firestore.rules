@@ -48,6 +48,10 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isManager();
     }
+    match /minipc/{docId} {
+      allow read: if true;
+      allow write: if isManager();
+    }
   }
 }
 
