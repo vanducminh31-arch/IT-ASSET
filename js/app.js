@@ -358,16 +358,19 @@ function renderTransactions() {
   const _grpMap = {};
   list.forEach((t) => {
     const key = [keyOf(safeTrim(t.Item)), t.TxType, keyOf(safeTrim(t.Assigned))].join("|");
-    if (!_grpMap[key]) _grpMap[key] = { key, item: safeTrim(t.Item), txType: t.TxType, assigned: safeTrim(t.Assigned), qty: 0, sns: [], rawTxs: [], status: t.Status, lastDate: "", desc: safeTrim(t.Description) || "" };
+    if (!_grpMap[key]) _grpMap[key] = { key, item: safeTrim(t.Item), txType: t.TxType, assigned: safeTrim(t.Assigned), qty: 0, sns: [], rawTxs: [], statuses: new Set(), lastDate: "", firstDate: "9999-99-99", desc: safeTrim(t.Description) || "" };
     _grpMap[key].qty += toNumber(t.Quantity, 0);
     _grpMap[key].rawTxs.push(t);
+    if (safeTrim(t.Status)) _grpMap[key].statuses.add(safeTrim(t.Status));
     const _snv = t.SN;
     if (Array.isArray(_snv)) _snv.forEach((s) => { const v = cleanSN(s); if (v) _grpMap[key].sns.push(v); });
     else safeTrim(_snv).split(/[\n,]+/).forEach((s) => { const sv = cleanSN(s); if (sv) _grpMap[key].sns.push(sv); });
     if (safeTrim(t.Date) > _grpMap[key].lastDate) _grpMap[key].lastDate = safeTrim(t.Date);
+    if (safeTrim(t.Date) && safeTrim(t.Date) < _grpMap[key].firstDate) _grpMap[key].firstDate = safeTrim(t.Date);
     if (!_grpMap[key].desc && safeTrim(t.Description)) _grpMap[key].desc = safeTrim(t.Description);
   });
   const grouped = Object.values(_grpMap).sort((a, b) => b.lastDate.localeCompare(a.lastDate));
+  _txGroupedData = grouped;
 
   const total = grouped.length;
   const pages = Math.ceil(total / PAGE_SIZE) || 1;
@@ -411,46 +414,36 @@ function renderTransactions() {
             ${paged.length ? paged.map((d) => {
               const _isSingle = d.rawTxs.length === 1;
               const _isExp = expandedTxGroups.has(d.key);
+              const _dateDisplay = _isSingle
+                ? fmtDate(d.lastDate) || "—"
+                : (d.firstDate !== "9999-99-99" && d.firstDate !== d.lastDate
+                    ? `${fmtDate(d.firstDate)} → ${fmtDate(d.lastDate)}`
+                    : fmtDate(d.lastDate) || "—");
+              const _statusArr = [...(d.statuses || [])];
+              const _statusDisplay = _statusArr.length ? _statusArr.map(s => statusBadge(s)).join(" ") : statusBadge("");
               const _grpRow = `
-                <tr>
+                <tr${!_isSingle ? ` style="background:rgba(88,166,255,.03)"` : ""}>
                   <td>
                     <div style="font-weight:500">${hl(d.item, q)}</div>
                     ${d.desc ? `<div style="font-size:11px;color:var(--dim);margin-top:1px">${hl(d.desc, q)}</div>` : ""}
+                    ${!_isSingle ? `<div style="font-size:10px;color:var(--accent);margin-top:2px">⊞ ${d.rawTxs.length} giao dịch gộp</div>` : ""}
                   </td>
                   <td><span class="badge-tx ${d.txType === "in" ? "badge-in" : "badge-out"}">${d.txType === "in" ? "↑ IN" : "↓ OUT"}</span></td>
-                  <td class="mono" style="font-size:15px;font-weight:600;color:${d.txType === "in" ? "var(--in)" : "var(--out)"}">${d.qty}</td>
+                  <td class="mono" style="font-size:15px;font-weight:600;color:${d.txType === "in" ? "var(--in)" : "var(--out)"}">${d.qty}${!_isSingle ? `<div style="font-size:10px;font-weight:400;color:var(--dim)">tổng</div>` : ""}</td>
                   <td style="font-size:12px;color:var(--muted)">${hl(d.assigned, q) || "—"}</td>
-                  <td>${statusBadge(d.status)}</td>
-                  <td class="mono" style="font-size:11px;color:var(--dim)">${d.sns.length ? d.sns.map((s) => `<div style="white-space:nowrap">${hl(s, q)}</div>`).join("") : "—"}</td>
-                  <td class="mono" style="font-size:11px;color:var(--muted);white-space:nowrap">${fmtDate(d.lastDate) || "—"}</td>
+                  <td>${_statusDisplay}</td>
+                  <td class="mono" style="font-size:11px;color:var(--dim)">${d.sns.length ? (d.sns.length === 1 ? `<div style="white-space:nowrap">${hl(d.sns[0], q)}</div>` : `<div style="white-space:nowrap">${hl(d.sns[0], q)}</div><div style="color:var(--accent);font-size:10px">+${d.sns.length - 1} serial khác</div>`) : "—"}</td>
+                  <td class="mono" style="font-size:11px;color:var(--muted);white-space:nowrap">${_dateDisplay}</td>
                   <td style="white-space:nowrap">
+                    <button onclick="showTxGroupDetail('${d.key.replace(/'/g, "\\'")}')" style="${_bs};color:var(--accent);font-weight:500" title="Xem chi tiết">☰</button>
                     ${_isSingle
                       ? `<button onclick="openTxEdit('${d.rawTxs[0].id}')" style="${_bs};color:var(--dim)" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--dim)'" title="Chỉnh sửa">✎</button>
                          <button onclick="deleteTx('${d.rawTxs[0].id}')" style="${_bs};color:var(--dim)" onmouseover="this.style.color='var(--out)'" onmouseout="this.style.color='var(--dim)'" title="Xoá">✕</button>`
-                      : `<button onclick="toggleTxGroup('${d.key.replace(/'/g, "\\'")}')" style="${_bs};color:var(--accent);font-weight:600" title="${_isExp ? "Thu gọn" : "Chỉnh sửa từng giao dịch"}">${_isExp ? "▲" : "▼"} ${d.rawTxs.length}</button>`
+                      : ""
                     }
                   </td>
                 </tr>`;
-              const _expRows = (!_isSingle && _isExp) ? d.rawTxs.map((t) => {
-                const _tsn = Array.isArray(t.SN) ? t.SN.map(cleanSN).filter(Boolean) : safeTrim(t.SN).split(/[\n,]+/).map(cleanSN).filter(Boolean);
-                return `
-                <tr style="background:rgba(88,166,255,.04)">
-                  <td style="padding-left:24px;border-left:3px solid var(--accent)">
-                    <span style="font-size:10px;color:var(--dim);font-family:'IBM Plex Mono',monospace">↳ ${safeTrim(t.Description) || safeTrim(t.Item)}</span>
-                  </td>
-                  <td></td>
-                  <td class="mono" style="font-weight:600;color:${t.TxType==="in"?"var(--in)":"var(--out)"}">${toNumber(t.Quantity,0)}</td>
-                  <td style="font-size:11px;color:var(--muted)">${safeTrim(t.Assigned)||"—"}</td>
-                  <td>${statusBadge(t.Status)}</td>
-                  <td class="mono" style="font-size:11px;color:var(--dim)">${_tsn.length ? _tsn.map(s=>`<div style="white-space:nowrap">${s}</div>`).join("") : "—"}</td>
-                  <td class="mono" style="font-size:11px;color:var(--muted);white-space:nowrap">${fmtDate(safeTrim(t.Date))||"—"}</td>
-                  <td style="white-space:nowrap">
-                    <button onclick="openTxEdit('${t.id}')" style="${_bs};color:var(--dim)" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--dim)'" title="Chỉnh sửa">✎</button>
-                    <button onclick="deleteTx('${t.id}')" style="${_bs};color:var(--dim)" onmouseover="this.style.color='var(--out)'" onmouseout="this.style.color='var(--dim)'" title="Xoá">✕</button>
-                  </td>
-                </tr>`;
-              }).join("") : "";
-              return _grpRow + _expRows;
+              return _grpRow;
             }).join("")
             : `<tr><td colspan="8"><div class="empty"><div class="e-icon">○</div>Không tìm thấy kết quả</div></td></tr>`}
           </tbody>
@@ -1244,6 +1237,7 @@ function buildAutocompleteSources() {
 let newTxType = "in";
 let editingTxId = null;
 let expandedTxGroups = new Set();
+let _txGroupedData = [];
 
 function updateTxSerialFields(qty, prefill = []) {
   const wrapper = $("fSNWrapper");
@@ -1274,11 +1268,12 @@ function openModal(prefillType) {
   editingTxId = null;
   $("modalTitle").textContent = "+ Nhập giao dịch mới";
   $("btnSubmitTx").textContent = "Lưu giao dịch";
-  setTxType(prefillType || "out");
+  setTxType(prefillType || "in");
 
   $("fDate").value = new Date().toISOString().split("T")[0];
   ["fItem", "fTypeDevice", "fAssigned", "fDesc"].forEach((id) => ($(id).value = ""));
   $("fQty").value = 1;
+  $("fUnit").value = "pcs";
   $("fStatus").value = "";
   updateTxSerialFields(1, []);
   $("txModal").classList.add("open");
@@ -1424,10 +1419,31 @@ async function deleteTx(txId) {
   const t = TX.find((x) => String(x.id) === String(txId));
   if (!t || !confirm(`Xoá giao dịch "${safeTrim(t.Item)}" (${safeTrim(t.Date)})?`)) return;
   try {
-    await deleteDoc(doc(db, "transactions", String(txId)));
+    const batch = writeBatch(db);
+    batch.delete(doc(db, "transactions", String(txId)));
+
+    // Revert stock: IN → subtract back, OUT → add back
+    const itemKey = keyOf(safeTrim(t.Item));
+    if (itemKey) {
+      const stockSnap = await getDocs(query(collection(db, "stock"), where("itemKey", "==", itemKey)));
+      if (!stockSnap.empty) {
+        const sd = stockSnap.docs[0];
+        const revert = t.TxType === "in" ? -toNumber(t.Quantity, 0) : toNumber(t.Quantity, 0);
+        const newStock = Math.max(0, toNumber(sd.data().Stock, 0) + revert);
+        batch.update(sd.ref, { Stock: newStock, updatedAt: serverTimestamp() });
+      }
+    }
+
+    await batch.commit();
     TX = TX.filter((x) => String(x.id) !== String(txId));
     $("cnt-tx").textContent = TX.length;
-    showToast("Đã xoá giao dịch.", "success");
+
+    // Reload stock to keep UI in sync
+    STOCK = (await loadCollection("stock")).map((s) => ({ ...s, Stock: toNumber(s.Stock, 0), TypeDevice: safeTrim(s.TypeDevice) }));
+    $("cnt-stock").textContent = STOCK.length;
+    buildAutocompleteSources();
+
+    showToast("Đã xoá giao dịch & cập nhật tồn kho.", "success");
     render();
   } catch (e) {
     showToast(`Lỗi xóa: ${e?.message || e}`, "error");
@@ -1439,6 +1455,44 @@ function toggleTxGroup(grpKey) {
   else expandedTxGroups.add(grpKey);
   render();
 }
+
+function showTxGroupDetail(grpKey) {
+  const grp = _txGroupedData.find((g) => g.key === grpKey);
+  if (!grp) return;
+  const _bs = "background:transparent;border:none;cursor:pointer;font-size:13px;padding:2px 5px;border-radius:3px;transition:color .15s";
+  const _isSingle = grp.rawTxs.length === 1;
+  const box = $("txGroupDetailModal");
+  $("txGroupDetailTitle").innerHTML = `<span style="font-weight:600">${grp.item}</span> <span class="badge-tx ${grp.txType === "in" ? "badge-in" : "badge-out"}">${grp.txType === "in" ? "↑ IN" : "↓ OUT"}</span> <span style="color:var(--dim);font-size:13px">— ${_isSingle ? `SL: ${grp.qty}` : `${grp.rawTxs.length} giao dịch, tổng ${grp.qty}`}</span>`;
+  $("txGroupDetailBody").innerHTML = grp.rawTxs.map((t, i) => {
+    const _tsn = Array.isArray(t.SN) ? t.SN.map(cleanSN).filter(Boolean) : safeTrim(t.SN).split(/[\n,]+/).map(cleanSN).filter(Boolean);
+    return `
+      <div class="txg-card">
+        <div class="txg-card-header">
+          ${_isSingle ? "" : `<span class="txg-card-no">#${i + 1}</span>`}
+          <span class="mono" style="font-size:12px;color:var(--muted)">${fmtDate(safeTrim(t.Date)) || "—"}</span>
+          <div style="margin-left:auto;display:flex;gap:4px">
+            <button onclick="openTxEdit('${t.id}');closeTxGroupDetail()" style="${_bs};color:var(--dim)" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--dim)'" title="Chỉnh sửa">✎</button>
+            <button onclick="deleteTx('${t.id}');closeTxGroupDetail()" style="${_bs};color:var(--dim)" onmouseover="this.style.color='var(--out)'" onmouseout="this.style.color='var(--dim)'" title="Xoá">✕</button>
+          </div>
+        </div>
+        <div class="txg-card-body">
+          <div class="txg-row"><span class="txg-label">Số lượng</span><span class="mono" style="font-weight:600;font-size:16px;color:${t.TxType === "in" ? "var(--in)" : "var(--out)"}">${t.TxType === "in" ? "+" : "-"}${toNumber(t.Quantity, 0)} ${safeTrim(t.Unit) || "pcs"}</span></div>
+          <div class="txg-row"><span class="txg-label">Giao cho</span><span>${safeTrim(t.Assigned) || "—"}</span></div>
+          <div class="txg-row"><span class="txg-label">Trạng thái</span><span>${statusBadge(t.Status)}</span></div>
+          ${_tsn.length ? `<div class="txg-row" style="align-items:flex-start"><span class="txg-label">Serial</span><div class="mono" style="font-size:11px;display:flex;flex-direction:column;gap:3px">${_tsn.map((s, si) => `<div style="display:flex;align-items:center;gap:6px"><span style="color:var(--accent);font-size:9px;min-width:14px">${si + 1}.</span><span>${s}</span></div>`).join("")}</div></div>` : ""}
+          ${safeTrim(t.Description) ? `<div class="txg-row"><span class="txg-label">Mô tả</span><span style="font-size:12px;color:var(--dim)">${safeTrim(t.Description)}</span></div>` : ""}
+        </div>
+      </div>`;
+  }).join("");
+  box.classList.add("open");
+}
+
+function closeTxGroupDetail() {
+  $("txGroupDetailModal").classList.remove("open");
+}
+
+window.showTxGroupDetail = showTxGroupDetail;
+window.closeTxGroupDetail = closeTxGroupDetail;
 
 // expose autocomplete handlers
 window.openModal = openModal;
@@ -1528,6 +1582,25 @@ async function submitTransaction() {
 
     } else {
       // ── ADD MODE ───────────────────────────────────────
+
+      // Check stock availability for OUT transactions
+      if (newTxType === "out") {
+        const itemKey = keyOf(item);
+        const stockSnap = await getDocs(query(collection(db, "stock"), where("itemKey", "==", itemKey)));
+        const currentStock = stockSnap.empty ? 0 : toNumber(stockSnap.docs[0].data().Stock, 0);
+        if (currentStock <= 0) {
+          showToast(`⚠ "${item}" không có trong tồn kho (stock = 0). Không thể xuất.`, "error");
+          $("btnSubmitTx").disabled = false;
+          return;
+        }
+        if (qty > currentStock) {
+          if (!confirm(`⚠ Tồn kho "${item}" chỉ còn ${currentStock}. Bạn đang xuất ${qty}.\nStock sẽ về 0. Tiếp tục?`)) {
+            $("btnSubmitTx").disabled = false;
+            return;
+          }
+        }
+      }
+
       const txRef = doc(collection(db, "transactions"));
       const batch = writeBatch(db);
 
