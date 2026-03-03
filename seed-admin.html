@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Seed Admin User</title></head>
+<body style="font-family:monospace;padding:40px;background:#0d1117;color:#c9d1d9">
+<h2>🔧 Seed Admin User</h2>
+<p>Đăng nhập bằng tài khoản admin (vanducminh31@gmail...) rồi nhấn nút bên dưới.</p>
+<div style="margin:20px 0">
+  <input id="email" placeholder="Email" style="padding:8px;width:250px;margin-right:8px">
+  <input id="pass" type="password" placeholder="Password" style="padding:8px;width:200px;margin-right:8px">
+  <button id="btnLogin" style="padding:8px 16px;cursor:pointer">Đăng nhập</button>
+</div>
+<button id="btnSeed" disabled style="padding:12px 24px;background:#238636;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px">
+  Tạo Admin User Doc
+</button>
+<pre id="log" style="margin-top:20px;padding:16px;background:#161b22;border-radius:8px;min-height:100px"></pre>
+
+<script type="module">
+import { firebaseConfig } from "./js/firebase-config.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
+import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const log = (msg) => { document.getElementById("log").textContent += msg + "\n"; };
+
+document.getElementById("btnLogin").onclick = async () => {
+  const email = document.getElementById("email").value;
+  const pass = document.getElementById("pass").value;
+  try {
+    const cred = await signInWithEmailAndPassword(auth, email, pass);
+    log(`✅ Đăng nhập thành công: ${cred.user.email} (UID: ${cred.user.uid})`);
+    document.getElementById("btnSeed").disabled = false;
+  } catch(e) { log(`❌ Lỗi: ${e.message}`); }
+};
+
+onAuthStateChanged(auth, (user) => {
+  if (user) {
+    log(`ℹ Đang đăng nhập: ${user.email} (UID: ${user.uid})`);
+    document.getElementById("btnSeed").disabled = false;
+  }
+});
+
+document.getElementById("btnSeed").onclick = async () => {
+  const user = auth.currentUser;
+  if (!user) { log("❌ Chưa đăng nhập!"); return; }
+
+  try {
+    // Set current user as admin
+    await setDoc(doc(db, "users", user.uid), {
+      email: user.email,
+      role: "admin",
+      createdAt: serverTimestamp(),
+    });
+    log(`✅ Đã tạo: users/${user.uid} → role: admin (${user.email})`);
+
+    // Verify
+    const snap = await getDoc(doc(db, "users", user.uid));
+    log(`✅ Xác nhận: ${JSON.stringify(snap.data())}`);
+    log(`\n🎉 Hoàn tất! Bây giờ bạn có thể deploy firestore.rules mới.`);
+    log(`UID admin: ${user.uid}`);
+  } catch(e) {
+    log(`❌ Lỗi: ${e.message}`);
+  }
+};
+</script>
+</body></html>

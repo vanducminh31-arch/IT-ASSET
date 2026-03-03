@@ -16,6 +16,8 @@ import {
   query,
   where,
   doc,
+  getDoc,
+  setDoc,
   writeBatch,
   serverTimestamp,
   deleteDoc,
@@ -32,6 +34,34 @@ const authPersistenceReady = setPersistence(auth, browserSessionPersistence).cat
 
 // ── STATE ──────────────────────────────────────────────────
 let currentUser = null;
+let currentRole = null; // 'admin' | 'manager' | 'viewer'
+
+// ── ROLE HELPERS ───────────────────────────────────────────
+function isAdmin() { return currentRole === "admin"; }
+function isManager() { return currentRole === "admin" || currentRole === "manager"; }
+function isViewer() { return currentRole === "viewer"; }
+
+async function loadUserRole(user) {
+  if (!user) { currentRole = null; return; }
+  try {
+    const snap = await getDoc(doc(db, "users", user.uid));
+    if (snap.exists()) {
+      currentRole = snap.data().role || "viewer";
+    } else {
+      // First login — auto-create user doc as viewer
+      const newUser = {
+        email: user.email,
+        role: "viewer",
+        createdAt: serverTimestamp(),
+      };
+      await setDoc(doc(db, "users", user.uid), newUser);
+      currentRole = "viewer";
+    }
+  } catch (e) {
+    console.warn("Cannot load user role:", e);
+    currentRole = "viewer";
+  }
+}
 
 let TX = [];
 let STOCK = [];
@@ -80,11 +110,21 @@ function showToast(msg, type = "success") {
   showToast._t = setTimeout(() => el.classList.remove("show"), 3500);
 }
 
-function requireAuth(actionLabel = "thao tác này") {
-  if (currentUser) return true;
-  showToast(`Vui lòng đăng nhập để ${actionLabel}.`, "error");
-  openAuthModal();
-  return false;
+function requireAuth(actionLabel = "thao tác này", minRole = "manager") {
+  if (!currentUser) {
+    showToast(`Vui lòng đăng nhập để ${actionLabel}.`, "error");
+    openAuthModal();
+    return false;
+  }
+  if (minRole === "admin" && !isAdmin()) {
+    showToast(`Bạn cần quyền Admin để ${actionLabel}.`, "error");
+    return false;
+  }
+  if (minRole === "manager" && !isManager()) {
+    showToast(`Bạn chỉ có quyền Viewer — không thể ${actionLabel}.`, "error");
+    return false;
+  }
+  return true;
 }
 
 // ── AUTH UI ────────────────────────────────────────────────
@@ -125,7 +165,8 @@ async function doSignOut() {
 function refreshAuthUI() {
   const email = currentUser?.email || "";
   $("authEmail").style.display = currentUser ? "inline" : "none";
-  $("authEmail").textContent = email;
+  const roleLabel = currentRole === "admin" ? "👑 Admin" : currentRole === "manager" ? "⚙ Manager" : currentRole === "viewer" ? "👁 Viewer" : "";
+  $("authEmail").textContent = email + (roleLabel ? ` (${roleLabel})` : "");
   $("btnOpenAuth").style.display = currentUser ? "none" : "inline-flex";
   $("btnSignOut").style.display = currentUser ? "inline-flex" : "none";
 }
@@ -1011,7 +1052,7 @@ async function submitOffice() {
 }
 
 async function deleteOffice(id) {
-  if (!requireAuth("xóa văn phòng")) return;
+  if (!requireAuth("xóa văn phòng", "admin")) return;
   const o = OFFICES.find((x) => String(x.id) === String(id));
   if (!o) return;
   if (!confirm(`Xoá văn phòng "${safeTrim(o.name || o.Name || "")}"?`)) return;
@@ -1185,7 +1226,7 @@ async function submitWarehouse() {
 }
 
 async function deleteWarehouse(id) {
-  if (!requireAuth("xóa kho")) return;
+  if (!requireAuth("xóa kho", "admin")) return;
   const w = WAREHOUSES.find((x) => String(x.id) === String(id));
   if (!w) return;
   if (!confirm(`Xoá kho "${safeTrim(w.name || w.Name || "")}"?`)) return;
@@ -1415,7 +1456,7 @@ function openTxEdit(txId) {
 }
 
 async function deleteTx(txId) {
-  if (!requireAuth("xóa giao dịch")) return;
+  if (!requireAuth("xóa giao dịch", "admin")) return;
   const t = TX.find((x) => String(x.id) === String(txId));
   if (!t || !confirm(`Xoá giao dịch "${safeTrim(t.Item)}" (${safeTrim(t.Date)})?`)) return;
   try {
@@ -1828,7 +1869,7 @@ async function submitStock() {
 }
 
 async function deleteStock(id) {
-  if (!requireAuth("xóa item tồn kho")) return;
+  if (!requireAuth("xóa item tồn kho", "admin")) return;
   const s = STOCK.find((x) => String(x.id) === String(id));
   if (!s) return;
   if (!confirm(`Xoá "${safeTrim(s.Item)}" khỏi tồn kho?`)) return;
@@ -1997,18 +2038,19 @@ onAuthStateChanged(auth, async (user) => {
   const wasLoggedIn = _prevAuthUser !== undefined && _prevAuthUser !== null;
   _prevAuthUser = user || null;
   currentUser = user || null;
-  refreshAuthUI();
   if (user) {
+    await loadUserRole(user);
     startInactivityTimer();
   } else {
+    currentRole = null;
     stopInactivityTimer();
     if (wasLoggedIn) {
-      // Show intro screen on sign-out
       if (typeof window.showIntroScreen === "function") {
         window.showIntroScreen();
       }
     }
   }
+  refreshAuthUI();
 });
 
 // Initial data load

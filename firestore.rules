@@ -1,20 +1,52 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Option A (recommended): Only admin UIDs can write.
-    // Replace UID list with your Firebase Auth user UID(s).
-    function isAdmin() {
-      return request.auth != null
-        && request.auth.uid in [
-          "0Dey4gLQC8TO5AYLrwR6L7QOh3L2"
-        ];
+
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
     }
 
-    // If you want "any signed-in user can write", replace isAdmin() with (request.auth != null).
+    function isAdmin() {
+      return request.auth != null && getUserRole() == 'admin';
+    }
 
-    match /{document=**} {
+    function isManager() {
+      return request.auth != null && getUserRole() in ['admin', 'manager'];
+    }
+
+    // Users collection: anyone authenticated can read own doc, admin can read/write all
+    match /users/{userId} {
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update, delete: if isAdmin();
+    }
+
+    // Transactions: manager+ can write, authenticated can read
+    match /transactions/{txId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, update: if isManager();
+      allow delete: if isAdmin();
+    }
+
+    // Stock: manager+ can write
+    match /stock/{stockId} {
+      allow read: if true;
+      allow create, update: if isManager();
+      allow delete: if isAdmin();
+    }
+
+    // Stores, Offices, Warehouses: manager+ can write
+    match /stores/{docId} {
+      allow read: if true;
+      allow write: if isManager();
+    }
+    match /offices/{docId} {
+      allow read: if true;
+      allow write: if isManager();
+    }
+    match /warehouses/{docId} {
+      allow read: if true;
+      allow write: if isManager();
     }
   }
 }
