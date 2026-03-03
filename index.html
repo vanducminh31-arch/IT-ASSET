@@ -727,20 +727,28 @@
   }
   .io-lp-label{
     font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;
-    color:rgba(0,188,212,.7);text-transform:uppercase;letter-spacing:.8px;
+    color:#000;text-transform:uppercase;letter-spacing:.8px;
     margin-bottom:5px;display:block;
   }
   .io-lp-input{
     width:100%;background:rgba(3,3,8,.8);border:1px solid rgba(0,255,255,.2);
-    border-radius:5px;color:#d0f8ff;font-family:'IBM Plex Mono',monospace;
+    border-radius:5px;color:#000;font-family:'IBM Plex Mono',monospace;
     font-size:13px;padding:9px 12px;outline:none;
     transition:border-color .2s,box-shadow .2s;margin-bottom:12px;
-    -webkit-text-fill-color:#d0f8ff;
+    -webkit-text-fill-color:#000;
   }
   .io-lp-input:focus{
     border-color:#00ffff;box-shadow:0 0 0 2px rgba(0,255,255,.14);
   }
-  .io-lp-input::placeholder{color:rgba(0,188,212,.3);-webkit-text-fill-color:rgba(0,188,212,.3)}
+  .io-lp-input::placeholder{color:rgba(0,0,0,.35);-webkit-text-fill-color:rgba(0,0,0,.35)}
+  .io-pass-wrap{position:relative}
+  .io-pass-wrap .io-lp-input{padding-right:40px}
+  .io-pass-toggle{
+    position:absolute;right:8px;top:50%;transform:translateY(calc(-50% - 6px));
+    border:none;background:transparent;color:#000;cursor:pointer;
+    font-size:16px;line-height:1;padding:2px 4px;opacity:.75;
+  }
+  .io-pass-toggle:hover{opacity:1}
   .io-lp-btn{
     width:100%;padding:10px;margin-top:4px;
     background:rgba(0,255,255,.1);border:1px solid #00ffff;
@@ -1262,9 +1270,12 @@
           <label class="io-lp-label">Email</label>
           <input class="io-lp-input" id="ioAuthEmail" type="email" placeholder="you@company.com" autocomplete="username" spellcheck="false">
           <label class="io-lp-label">Password</label>
-          <input class="io-lp-input" id="ioAuthPass" type="password" placeholder="••••••••" autocomplete="current-password">
+          <div class="io-pass-wrap">
+            <input class="io-lp-input" id="ioAuthPass" type="password" placeholder="••••••••" autocomplete="current-password">
+            <button type="button" class="io-pass-toggle" id="ioPassToggle" aria-label="Hiện mật khẩu" title="Hiện mật khẩu">👁</button>
+          </div>
           <button class="io-lp-btn" id="ioAuthBtn" onclick="ioDoSignIn()">Đăng nhập →</button>
-          <div class="io-lp-msg info" id="ioAuthMsg">Đăng nhập để truy cập đầy đủ tính năng</div>
+          <div class="io-lp-msg info" id="ioAuthMsg"></div>
         </div>
 
         <!-- Welcome state (shown when already logged in) -->
@@ -1801,8 +1812,11 @@
       document.getElementById('ioLoginForm').style.display='';
       document.getElementById('ioAuthEmail').value='';
       document.getElementById('ioAuthPass').value='';
+      document.getElementById('ioAuthPass').type='password';
+      const toggle=document.getElementById('ioPassToggle');
+      if(toggle){toggle.textContent='👁';toggle.setAttribute('aria-label','Hiện mật khẩu');toggle.title='Hiện mật khẩu';}
       const msg=document.getElementById('ioAuthMsg');
-      msg.className='io-lp-msg info'; msg.textContent='Đăng nhập để truy cập đầy đủ tính năng';
+      msg.className='io-lp-msg info'; msg.textContent='';
       const btn=document.getElementById('ioAuthBtn');
       btn.disabled=false; btn.textContent='Đăng nhập →';
       const status=document.getElementById('ioCarStatus');
@@ -1888,6 +1902,15 @@
     // Enter key handlers
     document.getElementById('ioAuthPass').addEventListener('keydown',function(e){if(e.key==='Enter')ioDoSignIn();});
     document.getElementById('ioAuthEmail').addEventListener('keydown',function(e){if(e.key==='Enter')document.getElementById('ioAuthPass').focus();});
+    document.getElementById('ioPassToggle').addEventListener('click',function(){
+      const pass=document.getElementById('ioAuthPass');
+      const isHidden=pass.type==='password';
+      pass.type=isHidden?'text':'password';
+      this.textContent=isHidden?'🙈':'👁';
+      this.setAttribute('aria-label',isHidden?'Ẩn mật khẩu':'Hiện mật khẩu');
+      this.title=isHidden?'Ẩn mật khẩu':'Hiện mật khẩu';
+      pass.focus();
+    });
 
     // Dismiss
     window.dismissIntro=function(){
@@ -1906,8 +1929,11 @@
       const passInp=document.getElementById('ioAuthPass');
       if(emailInp)emailInp.value='';
       if(passInp)passInp.value='';
+      if(passInp)passInp.type='password';
+      const passToggle=document.getElementById('ioPassToggle');
+      if(passToggle){passToggle.textContent='👁';passToggle.setAttribute('aria-label','Hiện mật khẩu');passToggle.title='Hiện mật khẩu';}
       const msg=document.getElementById('ioAuthMsg');
-      if(msg){msg.className='io-lp-msg info';msg.textContent='Đăng nhập để truy cập đầy đủ tính năng';}
+      if(msg){msg.className='io-lp-msg info';msg.textContent='';}
       const btn=document.getElementById('ioAuthBtn');
       if(btn){btn.disabled=false;btn.textContent='Đăng nhập →';}
       const status=document.getElementById('ioCarStatus');

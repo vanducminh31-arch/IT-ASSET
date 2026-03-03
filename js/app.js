@@ -6,6 +6,8 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signOut,
+  setPersistence,
+  browserSessionPersistence,
 } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
 import {
   getFirestore,
@@ -24,6 +26,9 @@ import {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const authPersistenceReady = setPersistence(auth, browserSessionPersistence).catch((e) => {
+  console.warn("Không thể bật session persistence:", e);
+});
 
 // ── STATE ──────────────────────────────────────────────────
 let currentUser = null;
@@ -92,6 +97,7 @@ function closeAuthModal() {
 }
 
 async function doSignIn() {
+  await authPersistenceReady;
   const email = safeTrim($("authEmailInput").value);
   const pass = $("authPassInput").value ?? "";
   if (!email || !pass) {
