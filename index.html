@@ -1984,6 +1984,23 @@
   })();
   </script>
 
-  <script type="module" src="./js/app.js"></script>
+  <!-- Anti-DevTools & Source Protection -->
+  <script>
+  (function(){
+    // Block keyboard shortcuts for DevTools
+    document.addEventListener('keydown',function(e){
+      // F12
+      if(e.key==='F12'){e.preventDefault();return false;}
+      // Ctrl+Shift+I / Ctrl+Shift+J / Ctrl+Shift+C
+      if(e.ctrlKey&&e.shiftKey&&(e.key==='I'||e.key==='i'||e.key==='J'||e.key==='j'||e.key==='C'||e.key==='c')){e.preventDefault();return false;}
+      // Ctrl+U (View Source)
+      if(e.ctrlKey&&(e.key==='U'||e.key==='u')){e.preventDefault();return false;}
+    },true);
+    // Block right-click context menu
+    document.addEventListener('contextmenu',function(e){e.preventDefault();return false;});
+  })();
+  </script>
+
+  <script type="module" src="./build/js/app.js"></script>
 </body>
 </html>
