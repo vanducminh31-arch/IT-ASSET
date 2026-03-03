@@ -1751,9 +1751,7 @@
      INTRO OVERLAY LOGIC
   ══════════════════════════════════════════ */
   (function(){
-    if(sessionStorage.getItem('introDone')){ document.getElementById('introOverlay').classList.add('hidden'); return; }
-
-    // ── Particles ──
+    // ── Particles (init always so showIntroScreen can restart them) ──
     const pc=document.getElementById('ioParticles');
     const pctx=pc.getContext('2d');
     let pp=[];
@@ -1771,6 +1769,70 @@
     const hudTL=document.getElementById('ioHudTL');
     function updHUD(){const t=new Date().toTimeString().slice(0,8);if(hudTL)hudTL.innerHTML='SYS: ONLINE<br>MODE: CAR_WAIT<br>T: '+t;}
     let hudInt=setInterval(updHUD,1000);updHUD();
+
+    // ── Dismiss & ShowIntro (always defined) ──
+    window.dismissIntro=function(){
+      clearInterval(hudInt);
+      cancelAnimationFrame(pRaf);
+      sessionStorage.setItem('introDone','1');
+      document.getElementById('introOverlay').classList.add('hidden');
+    };
+
+    window.showIntroScreen=function(){
+      sessionStorage.removeItem('introDone');
+      // Reset login panel
+      document.getElementById('ioWelcome').style.display='none';
+      document.getElementById('ioLoginForm').style.display='';
+      const emailInp=document.getElementById('ioAuthEmail');
+      const passInp=document.getElementById('ioAuthPass');
+      if(emailInp)emailInp.value='';
+      if(passInp)passInp.value='';
+      if(passInp)passInp.type='password';
+      const passToggle=document.getElementById('ioPassToggle');
+      if(passToggle){passToggle.textContent='👁';passToggle.setAttribute('aria-label','Hiện mật khẩu');passToggle.title='Hiện mật khẩu';}
+      const msg=document.getElementById('ioAuthMsg');
+      if(msg){msg.className='io-lp-msg info';msg.textContent='';}
+      const btn=document.getElementById('ioAuthBtn');
+      if(btn){btn.disabled=false;btn.textContent='Đăng nhập →';}
+      const status=document.getElementById('ioCarStatus');
+      if(status){status.textContent='AWAITING AUTHENTICATION...';status.style.color='';status.style.borderColor='';status.style.animation='';}
+      // Reset Video State
+      const v = document.getElementById('ioIntroVideo');
+      if(v){
+        v.src='video/parked.mp4';v.loop=true;v.muted=true;v.currentTime=0;
+        v.play().catch(e=>console.warn('Video reset error:',e));
+        v.onended=null;v.onerror=null;
+      }
+      // Reset car & person (SVG Mode - legacy)
+      if(typeof gsap!=='undefined'){
+        gsap.killTweensOf('#ioCar');gsap.killTweensOf('#io-wf');gsap.killTweensOf('#io-wr');
+        gsap.set('#ioCar',{x:0,y:0});
+        const person=document.getElementById('ioWaitPerson');
+        if(person)gsap.set(person,{x:0,opacity:1});
+        if(window._idleTween) window._idleTween.kill();
+        if(!v){
+          _idleTween=gsap.to('#ioCar',{y:-6,repeat:-1,yoyo:true,duration:2.2,ease:'sine.inOut'});
+          _wfTween=gsap.to('#io-wf',{rotation:360,repeat:-1,duration:4,ease:'none',svgOrigin:'310 107'});
+          _wrTween=gsap.to('#io-wr',{rotation:360,repeat:-1,duration:4,ease:'none',svgOrigin:'90 107'});
+        }
+      }
+      // Restart HUD clock
+      clearInterval(hudInt);
+      function _updHUD(){const t=new Date().toTimeString().slice(0,8);const h=document.getElementById('ioHudTL');if(h)h.innerHTML='SYS: ONLINE<br>MODE: CAR_WAIT<br>T: '+t;}
+      hudInt=setInterval(_updHUD,1000);_updHUD();
+      // Restart particles
+      cancelAnimationFrame(pRaf);
+      (function pLoop2(){
+        pctx.clearRect(0,0,pc.width,pc.height);
+        pp.forEach(p=>{p.x+=p.vx;p.y+=p.vy;if(p.x<0)p.x=pc.width;if(p.x>pc.width)p.x=0;if(p.y<0)p.y=pc.height;if(p.y>pc.height)p.y=0;pctx.beginPath();pctx.arc(p.x,p.y,p.r,0,Math.PI*2);pctx.fillStyle='rgba(0,255,255,'+p.a+')';pctx.fill();});
+        pRaf=requestAnimationFrame(pLoop2);
+      })();
+      // Show overlay
+      document.getElementById('introOverlay').classList.remove('hidden');
+    };
+
+    // ── If already dismissed, hide overlay and skip auth bridge setup ──
+    if(sessionStorage.getItem('introDone')){ document.getElementById('introOverlay').classList.add('hidden'); return; }
 
     // ── Auth bridge ──
     window.ioDoSignIn=function(){
@@ -1912,75 +1974,6 @@
       pass.focus();
     });
 
-    // Dismiss
-    window.dismissIntro=function(){
-      clearInterval(hudInt);
-      cancelAnimationFrame(pRaf);
-      sessionStorage.setItem('introDone','1');
-      document.getElementById('introOverlay').classList.add('hidden');
-    };
-
-    window.showIntroScreen=function(){
-      sessionStorage.removeItem('introDone');
-      // Reset login panel
-      document.getElementById('ioWelcome').style.display='none';
-      document.getElementById('ioLoginForm').style.display='';
-      const emailInp=document.getElementById('ioAuthEmail');
-      const passInp=document.getElementById('ioAuthPass');
-      if(emailInp)emailInp.value='';
-      if(passInp)passInp.value='';
-      if(passInp)passInp.type='password';
-      const passToggle=document.getElementById('ioPassToggle');
-      if(passToggle){passToggle.textContent='👁';passToggle.setAttribute('aria-label','Hiện mật khẩu');passToggle.title='Hiện mật khẩu';}
-      const msg=document.getElementById('ioAuthMsg');
-      if(msg){msg.className='io-lp-msg info';msg.textContent='';}
-      const btn=document.getElementById('ioAuthBtn');
-      if(btn){btn.disabled=false;btn.textContent='Đăng nhập →';}
-      const status=document.getElementById('ioCarStatus');
-      if(status){status.textContent='AWAITING AUTHENTICATION...';status.style.color='';status.style.borderColor='';status.style.animation='';}
-      
-      // Reset Video State (Video Mode)
-      const v = document.getElementById('ioIntroVideo');
-      if(v){
-        v.src='video/parked.mp4';
-        v.loop=true;
-        v.muted=true;
-        v.currentTime=0;
-        v.play().catch(e=>console.warn('Video reset error:',e));
-        v.onended=null;
-        v.onerror=null;
-      }
-
-      // Reset car & person (SVG Mode - legacy kept hidden)
-      if(typeof gsap!=='undefined'){
-        gsap.killTweensOf('#ioCar');
-        gsap.killTweensOf('#io-wf');
-        gsap.killTweensOf('#io-wr');
-        gsap.set('#ioCar',{x:0,y:0});
-        const person=document.getElementById('ioWaitPerson');
-        if(person)gsap.set(person,{x:0,opacity:1});
-        if(window._idleTween) window._idleTween.kill(); // Kill previous
-        // Don't restart SVG tweens if video exists, to save performance
-        if(!v) {
-           _idleTween=gsap.to('#ioCar',{y:-6,repeat:-1,yoyo:true,duration:2.2,ease:'sine.inOut'});
-           _wfTween=gsap.to('#io-wf',{rotation:360,repeat:-1,duration:4,ease:'none',svgOrigin:'310 107'});
-           _wrTween=gsap.to('#io-wr',{rotation:360,repeat:-1,duration:4,ease:'none',svgOrigin:'90 107'});
-        }
-      }
-      // Restart HUD clock
-      clearInterval(hudInt);
-      function _updHUD(){const t=new Date().toTimeString().slice(0,8);const h=document.getElementById('ioHudTL');if(h)h.innerHTML='SYS: ONLINE<br>MODE: CAR_WAIT<br>T: '+t;}
-      hudInt=setInterval(_updHUD,1000);_updHUD();
-      // Restart particles
-      cancelAnimationFrame(pRaf);
-      (function pLoop2(){
-        pctx.clearRect(0,0,pc.width,pc.height);
-        pp.forEach(p=>{p.x+=p.vx;p.y+=p.vy;if(p.x<0)p.x=pc.width;if(p.x>pc.width)p.x=0;if(p.y<0)p.y=pc.height;if(p.y>pc.height)p.y=0;pctx.beginPath();pctx.arc(p.x,p.y,p.r,0,Math.PI*2);pctx.fillStyle='rgba(0,255,255,'+p.a+')';pctx.fill();});
-        pRaf=requestAnimationFrame(pLoop2);
-      })();
-      // Show overlay
-      document.getElementById('introOverlay').classList.remove('hidden');
-    };
   })();
   </script>
 
