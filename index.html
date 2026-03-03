@@ -1987,17 +1987,75 @@
   <!-- Anti-DevTools & Source Protection -->
   <script>
   (function(){
-    // Block keyboard shortcuts for DevTools
+    'use strict';
+    // ═══ 1. Block all keyboard shortcuts ═══
     document.addEventListener('keydown',function(e){
       // F12
-      if(e.key==='F12'){e.preventDefault();return false;}
-      // Ctrl+Shift+I / Ctrl+Shift+J / Ctrl+Shift+C
-      if(e.ctrlKey&&e.shiftKey&&(e.key==='I'||e.key==='i'||e.key==='J'||e.key==='j'||e.key==='C'||e.key==='c')){e.preventDefault();return false;}
+      if(e.keyCode===123){e.preventDefault();e.stopPropagation();return false;}
+      // Ctrl+Shift+I/J/C (DevTools)
+      if(e.ctrlKey&&e.shiftKey&&[73,74,67].indexOf(e.keyCode)!==-1){e.preventDefault();e.stopPropagation();return false;}
       // Ctrl+U (View Source)
-      if(e.ctrlKey&&(e.key==='U'||e.key==='u')){e.preventDefault();return false;}
+      if(e.ctrlKey&&e.keyCode===85){e.preventDefault();e.stopPropagation();return false;}
+      // Ctrl+S (Save page)
+      if(e.ctrlKey&&e.keyCode===83){e.preventDefault();e.stopPropagation();return false;}
     },true);
-    // Block right-click context menu
-    document.addEventListener('contextmenu',function(e){e.preventDefault();return false;});
+
+    // ═══ 2. Block right-click ═══
+    document.addEventListener('contextmenu',function(e){e.preventDefault();return false;},true);
+
+    // ═══ 3. Block drag (prevent dragging images/text to reveal source) ═══
+    document.addEventListener('dragstart',function(e){e.preventDefault();return false;},true);
+
+    // ═══ 4. Block text selection on sensitive elements ═══
+    document.addEventListener('selectstart',function(e){
+      if(e.target.tagName!=='INPUT'&&e.target.tagName!=='TEXTAREA'){e.preventDefault();return false;}
+    },true);
+
+    // ═══ 5. DevTools detection — debugger timing ═══
+    var _dtOpen=false;
+    function _checkDevTools(){
+      var t0=performance.now();
+      debugger;
+      var t1=performance.now();
+      if(t1-t0>80){
+        if(!_dtOpen){_dtOpen=true;_onDevToolsOpen();}
+      }else{
+        _dtOpen=false;
+      }
+    }
+
+    // ═══ 6. DevTools detection — window size diff ═══
+    function _checkSize(){
+      var widthThreshold=window.outerWidth-window.innerWidth>160;
+      var heightThreshold=window.outerHeight-window.innerHeight>160;
+      if(widthThreshold||heightThreshold){
+        if(!_dtOpen){_dtOpen=true;_onDevToolsOpen();}
+      }
+    }
+
+    // ═══ 7. DevTools detection — console.log override ═══
+    var _devEl=new Image();
+    Object.defineProperty(_devEl,'id',{get:function(){_dtOpen=true;_onDevToolsOpen();}});
+
+    // ═══ 8. Action when DevTools detected ═══
+    function _onDevToolsOpen(){
+      // Clear page content entirely
+      try{
+        document.head.innerHTML='<title>Access Denied</title><style>*{margin:0;padding:0}body{background:#0d1117;display:flex;align-items:center;justify-content:center;height:100vh;font-family:monospace}</style>';
+        document.body.innerHTML='<div style="text-align:center;color:#ff0055;font-size:18px;letter-spacing:2px"><div style="font-size:48px;margin-bottom:16px">⛔</div>ACCESS DENIED<br><span style="font-size:12px;color:#555;margin-top:8px;display:block">Developer tools are not allowed.</span></div>';
+      }catch(ex){}
+      // Stop all scripts
+      throw new Error('DevTools detected — session terminated.');
+    }
+
+    // Run checks periodically
+    setInterval(_checkSize,1500);
+    // Debugger check runs less often to avoid performance hit
+    setInterval(_checkDevTools,3000);
+    // Console trap
+    setInterval(function(){if(!_dtOpen)console.log('%c',_devEl);},4000);
+    console.log('%c⚠ Warning','color:#ff0055;font-size:18px;font-weight:bold');
+    console.log('%cThis console is monitored. Unauthorized access is prohibited.','color:#f85149;font-size:12px');
   })();
   </script>
 
