@@ -170,11 +170,11 @@ function refreshAuthUI() {
   $("btnOpenAuth").style.display = currentUser ? "none" : "inline-flex";
   $("btnSignOut").style.display = currentUser ? "inline-flex" : "none";
 
-  // Hide restricted nav items for viewer
+  // Dim restricted nav items for viewer
   const restricted = ["nav-stock", "nav-stores", "nav-offices", "nav-warehouses", "nav-dashboard"];
   restricted.forEach((id) => {
     const el = $(id);
-    if (el) el.style.display = isViewer() ? "none" : "";
+    if (el) el.style.opacity = isViewer() ? "0.45" : "";
   });
 }
 
@@ -193,8 +193,16 @@ function showPage(page) {
   // Block viewer from restricted pages
   const restricted = ["stock", "stores", "offices", "warehouses", "dashboard"];
   if (isViewer() && restricted.includes(page)) {
-    showToast("Bạn chỉ có quyền xem Giao dịch.", "error");
-    page = "transactions";
+    $("main").innerHTML = `
+      <div class="empty" style="padding:80px 20px">
+        <div class="e-icon" style="font-size:48px">🔒</div>
+        <div style="font-size:18px;font-weight:600;margin-top:16px;color:var(--text)">Không có quyền truy cập</div>
+        <div style="margin-top:8px;font-size:13px;color:var(--muted)">Chỉ <b>Admin</b> và <b>Manager</b> mới được xem trang này.</div>
+        <div style="margin-top:6px;font-size:12px;color:var(--dim)">Tài khoản của bạn: <b>👁 Viewer</b></div>
+        <button onclick="showPage('transactions')" style="margin-top:20px;padding:8px 20px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px">← Xem Giao dịch</button>
+      </div>`;
+    navActivate(page);
+    return;
   }
   currentPage = page;
   txPage = 1;
