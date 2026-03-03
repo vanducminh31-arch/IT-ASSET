@@ -2014,10 +2014,10 @@
     // ═══ 5. DevTools detection — debugger timing ═══
     var _dtOpen=false;
     function _checkDevTools(){
-      var t0=performance.now();
-      debugger;
-      var t1=performance.now();
-      if(t1-t0>80){
+      var start=new Date();
+      (function(){}).constructor('debugger')();
+      var end=new Date();
+      if(end-start>80){
         if(!_dtOpen){_dtOpen=true;_onDevToolsOpen();}
       }else{
         _dtOpen=false;
