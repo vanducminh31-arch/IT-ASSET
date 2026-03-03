@@ -169,6 +169,13 @@ function refreshAuthUI() {
   $("authEmail").textContent = email + (roleLabel ? ` (${roleLabel})` : "");
   $("btnOpenAuth").style.display = currentUser ? "none" : "inline-flex";
   $("btnSignOut").style.display = currentUser ? "inline-flex" : "none";
+
+  // Hide restricted nav items for viewer
+  const restricted = ["nav-stock", "nav-stores", "nav-offices", "nav-warehouses", "nav-dashboard"];
+  restricted.forEach((id) => {
+    const el = $(id);
+    if (el) el.style.display = isViewer() ? "none" : "";
+  });
 }
 
 // ── SEARCH / NAV ───────────────────────────────────────────
@@ -183,6 +190,12 @@ function navActivate(page) {
 }
 
 function showPage(page) {
+  // Block viewer from restricted pages
+  const restricted = ["stock", "stores", "offices", "warehouses", "dashboard"];
+  if (isViewer() && restricted.includes(page)) {
+    showToast("Bạn chỉ có quyền xem Giao dịch.", "error");
+    page = "transactions";
+  }
   currentPage = page;
   txPage = 1;
   navActivate(page);
@@ -208,13 +221,15 @@ async function loadCollection(name) {
 async function loadAll() {
   $("main").innerHTML = `<div class="empty"><div class="e-icon">⟳</div>Đang tải dữ liệu...</div>`;
   try {
+    // Viewer: only load transactions
+    const canReadAll = isManager() || isAdmin();
     const [tx, stock, pc, stores, offices, warehouses] = await Promise.all([
       loadCollection("transactions"),
-      loadCollection("stock"),
-      loadCollection("minipc"),
-      loadCollection("stores"),
-      loadCollection("offices"),
-      loadCollection("warehouses"),
+      canReadAll ? loadCollection("stock") : Promise.resolve([]),
+      canReadAll ? loadCollection("minipc") : Promise.resolve([]),
+      canReadAll ? loadCollection("stores") : Promise.resolve([]),
+      canReadAll ? loadCollection("offices") : Promise.resolve([]),
+      canReadAll ? loadCollection("warehouses") : Promise.resolve([]),
     ]);
 
     TX = (tx || []).map((t) => ({ ...t, Quantity: toNumber(t.Quantity, 0) }));
@@ -2046,16 +2061,20 @@ onAuthStateChanged(auth, async (user) => {
   if (user) {
     await loadUserRole(user);
     startInactivityTimer();
+    refreshAuthUI();
+    // Reload data with correct permissions, redirect viewer
+    await loadAll();
+    if (isViewer()) showPage("transactions");
   } else {
     currentRole = null;
     stopInactivityTimer();
+    refreshAuthUI();
     if (wasLoggedIn) {
       if (typeof window.showIntroScreen === "function") {
         window.showIntroScreen();
       }
     }
   }
-  refreshAuthUI();
 });
 
 // Initial data load

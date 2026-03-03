@@ -28,28 +28,28 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Stock: manager+ can write
+    // Stock: manager+ can read/write
     match /stock/{stockId} {
-      allow read: if true;
+      allow read: if isManager();
       allow create, update: if isManager();
       allow delete: if isAdmin();
     }
 
-    // Stores, Offices, Warehouses: manager+ can write
+    // Stores, Offices, Warehouses: manager+ can read/write
     match /stores/{docId} {
-      allow read: if true;
+      allow read: if isManager();
       allow write: if isManager();
     }
     match /offices/{docId} {
-      allow read: if true;
+      allow read: if isManager();
       allow write: if isManager();
     }
     match /warehouses/{docId} {
-      allow read: if true;
+      allow read: if isManager();
       allow write: if isManager();
     }
     match /minipc/{docId} {
-      allow read: if true;
+      allow read: if isManager();
       allow write: if isManager();
     }
   }
