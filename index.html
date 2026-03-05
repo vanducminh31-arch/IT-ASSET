@@ -808,6 +808,163 @@
     .io-tabs{display:none}
   }
 
+  /* ══════════════════════════════════════════
+     AI CHATBOX
+  ═══════════════════════════════════════════ */
+  .chatbox-toggle{
+    position:fixed;bottom:24px;right:88px;z-index:90;
+    width:48px;height:48px;border-radius:50%;
+    background:linear-gradient(135deg,#667eea,#764ba2);
+    border:none;cursor:pointer;
+    box-shadow:0 4px 16px rgba(102,126,234,.4);
+    display:flex;align-items:center;justify-content:center;
+    transition:all .2s;color:#fff;font-size:22px;
+  }
+  .chatbox-toggle:hover{transform:scale(1.1);box-shadow:0 6px 24px rgba(102,126,234,.55)}
+  .chatbox-toggle .chat-badge{
+    position:absolute;top:-2px;right:-2px;
+    background:#f85149;color:#fff;border-radius:50%;
+    width:18px;height:18px;font-size:10px;font-weight:700;
+    display:none;align-items:center;justify-content:center;
+  }
+
+  .chatbox{
+    position:fixed;bottom:80px;right:24px;z-index:95;
+    width:380px;max-width:calc(100vw - 32px);
+    height:520px;max-height:calc(100vh - 100px);
+    background:var(--surface);border:1px solid var(--border);
+    border-radius:14px;overflow:hidden;
+    box-shadow:0 16px 48px rgba(0,0,0,.45);
+    display:flex;flex-direction:column;
+    transform:translateY(20px) scale(.95);opacity:0;
+    pointer-events:none;transition:all .25s ease;
+  }
+  .chatbox.open{transform:translateY(0) scale(1);opacity:1;pointer-events:all}
+
+  .chatbox-header{
+    display:flex;align-items:center;gap:10px;
+    padding:14px 16px;background:linear-gradient(135deg,#667eea,#764ba2);
+    color:#fff;flex-shrink:0;
+  }
+  .chatbox-header .ch-avatar{
+    width:32px;height:32px;border-radius:50%;
+    background:rgba(255,255,255,.2);display:flex;
+    align-items:center;justify-content:center;font-size:16px;
+  }
+  .chatbox-header .ch-info{flex:1}
+  .chatbox-header .ch-name{font-weight:600;font-size:14px}
+  .chatbox-header .ch-status{font-size:11px;opacity:.8;display:flex;align-items:center;gap:4px}
+  .chatbox-header .ch-dot{width:6px;height:6px;border-radius:50%;background:#3fb950;display:inline-block}
+  .chatbox-close{background:none;border:none;color:rgba(255,255,255,.8);cursor:pointer;font-size:18px;padding:4px;border-radius:4px;transition:color .15s}
+  .chatbox-close:hover{color:#fff}
+
+  .chatbox-messages{
+    flex:1;overflow-y:auto;padding:16px;
+    display:flex;flex-direction:column;gap:10px;
+  }
+  .chat-msg{
+    max-width:85%;padding:10px 14px;
+    border-radius:12px;font-size:13px;line-height:1.5;
+    word-wrap:break-word;
+  }
+  .chat-msg.bot{
+    align-self:flex-start;
+    background:var(--surface2);color:var(--text);
+    border-bottom-left-radius:4px;
+  }
+  .chat-msg.user{
+    align-self:flex-end;
+    background:linear-gradient(135deg,#667eea,#764ba2);
+    color:#fff;border-bottom-right-radius:4px;
+  }
+  .chat-msg .msg-time{
+    display:block;font-size:10px;opacity:.5;margin-top:4px;
+  }
+  .chat-typing{
+    align-self:flex-start;padding:10px 14px;
+    background:var(--surface2);border-radius:12px;
+    border-bottom-left-radius:4px;
+    display:none;gap:4px;align-items:center;
+  }
+  .chat-typing.show{display:flex}
+  .chat-typing span{
+    width:6px;height:6px;border-radius:50%;
+    background:var(--muted);display:inline-block;
+    animation:typingBounce .8s infinite;
+  }
+  .chat-typing span:nth-child(2){animation-delay:.15s}
+  .chat-typing span:nth-child(3){animation-delay:.3s}
+  @keyframes typingBounce{
+    0%,60%,100%{transform:translateY(0);opacity:.4}
+    30%{transform:translateY(-4px);opacity:1}
+  }
+
+  .chatbox-input{
+    display:flex;align-items:center;gap:8px;
+    padding:12px 14px;border-top:1px solid var(--border);
+    background:var(--surface);flex-shrink:0;
+  }
+  .chatbox-input input{
+    flex:1;background:var(--bg);border:1px solid var(--border);
+    border-radius:20px;color:var(--text);font-family:inherit;
+    font-size:13px;padding:9px 16px;outline:none;
+    transition:border-color .2s;
+  }
+  .chatbox-input input:focus{border-color:var(--accent)}
+  .chatbox-input input::placeholder{color:var(--dim)}
+  .chatbox-send{
+    width:36px;height:36px;border-radius:50%;
+    background:linear-gradient(135deg,#667eea,#764ba2);
+    border:none;color:#fff;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    transition:all .15s;flex-shrink:0;
+  }
+  .chatbox-send:hover{transform:scale(1.08)}
+  .chatbox-send:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
+  .chat-suggestions{
+    display:flex;flex-wrap:wrap;gap:6px;padding:0 16px 12px;
+    flex-shrink:0;
+  }
+  .chat-suggest-btn{
+    padding:5px 12px;border-radius:16px;
+    border:1px solid var(--border);background:transparent;
+    color:var(--muted);font-size:11px;cursor:pointer;
+    font-family:inherit;transition:all .15s;
+  }
+  .chat-suggest-btn:hover{border-color:#667eea;color:#667eea}
+
+  /* Chatbox theme overrides */
+  body.cyber .chatbox{border-color:#00ffff33;box-shadow:0 16px 48px rgba(0,0,0,.6),0 0 20px rgba(0,255,255,.08)}
+  body.cyber .chatbox-toggle{background:linear-gradient(135deg,#00ffff,#0088aa);box-shadow:0 4px 16px rgba(0,255,255,.4)}
+  body.cyber .chatbox-header{background:linear-gradient(135deg,#00ffff,#0088aa)}
+  body.cyber .chat-msg.user{background:linear-gradient(135deg,#00ffff,#0088aa);color:#030308}
+  body.cyber .chatbox-send{background:linear-gradient(135deg,#00ffff,#0088aa)}
+  body.cyber .chat-suggest-btn:hover{border-color:#00ffff;color:#00ffff}
+
+  body.sakura .chatbox-toggle{background:linear-gradient(135deg,#d63878,#e85d9a);box-shadow:0 4px 16px rgba(214,56,120,.4)}
+  body.sakura .chatbox-header{background:linear-gradient(135deg,#d63878,#e85d9a)}
+  body.sakura .chat-msg.user{background:linear-gradient(135deg,#d63878,#e85d9a)}
+  body.sakura .chatbox-send{background:linear-gradient(135deg,#d63878,#e85d9a)}
+  body.sakura .chat-suggest-btn:hover{border-color:#d63878;color:#d63878}
+
+  body.autumn .chatbox-toggle{background:linear-gradient(135deg,#c8702a,#e09040);box-shadow:0 4px 16px rgba(200,112,42,.4)}
+  body.autumn .chatbox-header{background:linear-gradient(135deg,#c8702a,#e09040)}
+  body.autumn .chat-msg.user{background:linear-gradient(135deg,#c8702a,#e09040)}
+  body.autumn .chatbox-send{background:linear-gradient(135deg,#c8702a,#e09040)}
+  body.autumn .chat-suggest-btn:hover{border-color:#c8702a;color:#c8702a}
+
+  body.excel .chatbox-toggle{background:linear-gradient(135deg,#1d6f42,#2a9d5c);box-shadow:0 4px 16px rgba(29,111,66,.4)}
+  body.excel .chatbox-header{background:linear-gradient(135deg,#1d6f42,#2a9d5c)}
+  body.excel .chat-msg.user{background:linear-gradient(135deg,#1d6f42,#2a9d5c)}
+  body.excel .chatbox-send{background:linear-gradient(135deg,#1d6f42,#2a9d5c)}
+  body.excel .chat-suggest-btn:hover{border-color:#1d6f42;color:#1d6f42}
+
+  @media(max-width:768px){
+    .chatbox{width:calc(100vw - 16px);right:8px;bottom:72px;height:calc(100vh - 90px)}
+    .chatbox-toggle{right:16px;bottom:16px}
+  }
+
   </style>
   <!-- GSAP animation library -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
@@ -1050,7 +1207,7 @@
           </div>
         </div>
         <div style="font-size:12px;color:var(--dim);line-height:1.4">
-          Nếu Firestore Rules giới hạn write theo admin UID, bạn cần thêm UID của tài khoản này vào rules.
+          Đăng nhập bằng tài khoản đã tạo trong Supabase Authentication.
         </div>
       </div>
       <div class="modal-footer">
@@ -1316,6 +1473,45 @@
 
   <!-- FLOATING ADD BUTTON -->
   <button class="fab" id="fabAddTx" title="Thêm giao dịch (phím N)">＋</button>
+
+  <!-- AI CHATBOX -->
+  <button class="chatbox-toggle" id="chatToggle" title="AI Assistant">
+    💬
+    <span class="chat-badge" id="chatBadge">1</span>
+  </button>
+
+  <div class="chatbox" id="chatbox">
+    <div class="chatbox-header">
+      <div class="ch-avatar">🤖</div>
+      <div class="ch-info">
+        <div class="ch-name">IT Asset AI</div>
+        <div class="ch-status"><span class="ch-dot"></span> Online • Data-connected</div>
+      </div>
+      <button class="chatbox-close" id="chatClose" title="Đóng">✕</button>
+    </div>
+    <div class="chatbox-messages" id="chatMessages">
+      <div class="chat-msg bot">
+        Xin chào! 👋 Tôi là trợ lý AI của hệ thống <strong>IT Asset Management</strong>.<br>
+        Tôi có thể truy cập <strong>dữ liệu thực</strong> của hệ thống. Hãy hỏi tôi:
+        <br>• Tổng quan / thống kê hệ thống
+        <br>• Tồn kho thiết bị (số lượng, loại)
+        <br>• Giao dịch nhập/xuất gần đây
+        <br>• Thiết bị hỏng, cửa hàng cụ thể
+        <br>• Tìm thiết bị/serial number
+        <span class="msg-time">Bây giờ</span>
+      </div>
+    </div>
+    <div class="chat-suggestions" id="chatSuggestions">
+      <button class="chat-suggest-btn" data-msg="Tổng quan hệ thống hiện tại">📊 Tổng quan</button>
+      <button class="chat-suggest-btn" data-msg="Liệt kê tồn kho các thiết bị">📦 Tồn kho</button>
+      <button class="chat-suggest-btn" data-msg="Thiết bị nào đang hỏng?">🔧 TB hỏng</button>
+      <button class="chat-suggest-btn" data-msg="Danh sách cửa hàng">🏪 Cửa hàng</button>
+    </div>
+    <div class="chatbox-input">
+      <input type="text" id="chatInput" placeholder="Nhập câu hỏi..." autocomplete="off" />
+      <button class="chatbox-send" id="chatSend" title="Gửi">➤</button>
+    </div>
+  </div>
 
   <!-- CYBER CANVAS -->
   <canvas id="cyberCanvas"></canvas>
@@ -2075,6 +2271,937 @@
   })();
   </script>
 
-  <script type="module" src="./build/js/app.js"></script>
+  <script type="module" src="./js/app.js"></script>
+
+  <!-- AI CHATBOX SCRIPT -->
+  <script>
+  (function(){
+    'use strict';
+
+    // ══════ CONFIG ══════
+    const GEMINI_API_KEY = ''; // ← Điền API key từ https://aistudio.google.com/app/apikey
+    const GEMINI_MODEL = 'gemini-2.0-flash';
+    const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=`;
+
+    const SYSTEM_PROMPT = `Bạn là trợ lý AI của hệ thống IT Asset Management. Bạn CÓ THỂ truy cập DỮ LIỆU THỰC của hệ thống.
+
+Khi người dùng hỏi về dữ liệu (tồn kho, giao dịch, cửa hàng, thiết bị, v.v.), hãy sử dụng dữ liệu thực được cung cấp trong phần [DỮ LIỆU HỆ THỐNG] để trả lời chính xác.
+
+Các chức năng chính:
+- Dashboard: tổng quan thống kê nhập/xuất, tồn kho
+- Transactions: quản lý giao dịch nhập (IN) và xuất (OUT) thiết bị
+- Stock: xem tồn kho, số lượng từng loại thiết bị
+- Mini PC: quản lý riêng các Mini PC với Serial Number
+- Stores: danh sách cửa hàng, thiết bị tại từng cửa hàng
+- Offices & Warehouses: quản lý văn phòng và kho hàng
+
+Hướng dẫn sử dụng:
+- Thêm giao dịch: nhấn nút ＋ hoặc phím N, chọn loại IN/OUT, điền thông tin
+- Tìm kiếm: dùng ô search trên topbar, hỗ trợ tìm theo mã, tên TB, serial
+- Import: vào trang Import để upload file JSON hoặc Excel (.xlsx)
+- Phím tắt: N = thêm mới, / = focus search, Escape = đóng modal
+
+Trạng thái thiết bị: Active/Still use (đang dùng), Broken (hỏng), New (mới), Old (cũ)
+Loại giao dịch: IN (nhập kho), OUT (xuất kho)
+
+QUY TẮC HÀNH ĐỘNG:
+Nếu người dùng muốn thực hiện hành động trên hệ thống, hãy thêm 1 dòng cuối cùng với format:
+[ACTION:navigate:PAGE_NAME] — để chuyển trang (dashboard, transactions, stock, stores, offices, warehouses)
+[ACTION:search:KEYWORD] — để tìm kiếm
+[ACTION:addtx] — để mở form thêm giao dịch
+
+Ví dụ: nếu user nói "đưa tôi đến trang tồn kho" → trả lời bình thường rồi thêm dòng:
+[ACTION:navigate:stock]
+
+Trả lời ngắn gọn, rõ ràng, bằng tiếng Việt. Dùng dữ liệu thực để trả lời. Nếu dữ liệu trống hoặc không có, hãy nói rõ.`;
+
+    // ══════ DATA SNAPSHOT (lightweight for Gemini context) ══════
+    let _snapshotCache = null;
+    let _snapshotTime = 0;
+    const SNAPSHOT_TTL = 30000; // 30s cache
+
+    function getDataSnapshot() {
+      const now = Date.now();
+      if (_snapshotCache && (now - _snapshotTime) < SNAPSHOT_TTL) return _snapshotCache;
+
+      const d = window.__IT_DATA;
+      if (!d) return '\n[DỮ LIỆU HỆ THỐNG]\nChưa tải dữ liệu. Hệ thống đang khởi động.';
+
+      const TX = d.TX || [];
+      const STOCK = d.STOCK || [];
+      const PC = d.PC || [];
+      const STORES = d.STORES || [];
+      const OFFICES = d.OFFICES || [];
+      const WAREHOUSES = d.WAREHOUSES || [];
+
+      const totalIn = TX.filter(t => t.TxType === 'in').reduce((s, t) => s + (Number(t.Quantity) || 0), 0);
+      const totalOut = TX.filter(t => t.TxType === 'out').reduce((s, t) => s + (Number(t.Quantity) || 0), 0);
+      const totalStock = STOCK.reduce((s, t) => s + (Number(t.Stock) || 0), 0);
+      const brokenTx = TX.filter(t => (t.Status || '').toLowerCase().includes('broken'));
+
+      let snapshot = `\n[DỮ LIỆU HỆ THỐNG - Cập nhật real-time]`;
+      snapshot += `\n📊 TỔNG QUAN: ${TX.length} GD (${TX.filter(t=>t.TxType==='in').length} nhập/${TX.filter(t=>t.TxType==='out').length} xuất), Nhập: ${totalIn}, Xuất: ${totalOut}, Tồn kho: ${totalStock} (${STOCK.length} loại), Hỏng: ${brokenTx.length}, Stores: ${STORES.length}, VP: ${OFFICES.length}, Kho: ${WAREHOUSES.length}, PC: ${PC.length}`;
+
+      // Stock summary (condensed)
+      snapshot += `\n📦 TỒN KHO: `;
+      STOCK.sort((a,b)=>(Number(b.Stock)||0)-(Number(a.Stock)||0)).slice(0, 10).forEach(s => {
+        snapshot += `${(s.Item||'').trim()}:${Number(s.Stock)||0}, `;
+      });
+      const oos = STOCK.filter(s => (Number(s.Stock) || 0) === 0);
+      if (oos.length > 0) snapshot += `\n⚠ Hết hàng: ${oos.map(s=>(s.Item||'').trim()).join(', ')}`;
+
+      // Recent 5 transactions only
+      const recentTx = [...TX].sort((a, b) => ((b.Date || '').localeCompare(a.Date || ''))).slice(0, 5);
+      snapshot += `\n📋 GD GẦN ĐÂY: `;
+      recentTx.forEach(t => {
+        snapshot += `[${t.TxType==='in'?'IN':'OUT'}] ${(t.Item||'').trim()} x${t.Quantity||0}${t.Assigned?' →'+t.Assigned:''}${t.Date?' ('+t.Date+')':''}, `;
+      });
+
+      // Store codes only (condensed)
+      if (STORES.length > 0) {
+        snapshot += `\n🏪 STORES: ${STORES.map(s=>(s['Store code']||s.store_code||'')).filter(Boolean).join(', ')}`;
+      }
+
+      _snapshotCache = snapshot;
+      _snapshotTime = now;
+      return snapshot;
+    }
+
+    // Get data for specific query (more targeted)
+    function getQueryContext(userText) {
+      const d = window.__IT_DATA;
+      if (!d) return '';
+      const t = userText.toLowerCase();
+      let extra = '';
+
+      const TX = d.TX || [];
+      const STOCK = d.STOCK || [];
+      const STORES = d.STORES || [];
+
+      // If asking about specific device/item
+      const items = [...new Set([...TX.map(x=>x.Item), ...STOCK.map(x=>x.Item)].filter(Boolean).map(x=>x.trim()))];
+      const matchedItems = items.filter(item => t.includes(item.toLowerCase()));
+      if (matchedItems.length > 0) {
+        extra += '\n\n🔍 THIẾT BỊ LIÊN QUAN ĐẾN CÂU HỎI:';
+        matchedItems.forEach(itemName => {
+          const txForItem = TX.filter(x => (x.Item||'').trim().toLowerCase() === itemName.toLowerCase());
+          const stockForItem = STOCK.filter(x => (x.Item||'').trim().toLowerCase() === itemName.toLowerCase());
+          extra += `\n\n→ "${itemName}":`;
+          if (stockForItem.length > 0) {
+            stockForItem.forEach(s => {
+              extra += `\n  Tồn kho: ${Number(s.Stock)||0} units (Loại: ${s.TypeDevice||'N/A'})`;
+            });
+          }
+          if (txForItem.length > 0) {
+            extra += `\n  Giao dịch: ${txForItem.length} (${txForItem.filter(x=>x.TxType==='in').length} nhập, ${txForItem.filter(x=>x.TxType==='out').length} xuất)`;
+            txForItem.slice(0, 5).forEach(tx => {
+              extra += `\n    [${tx.TxType==='in'?'IN':'OUT'}] x${tx.Quantity||0}${tx.Assigned?' → '+tx.Assigned:''}${tx.Date?' ('+tx.Date+')':''}`;
+            });
+          }
+        });
+      }
+
+      // If asking about specific store
+      const storeMatched = STORES.filter(s => {
+        const code = (s['Store code']||s.store_code||'').toLowerCase();
+        const name = (s['Store name']||s.store_name||'').toLowerCase();
+        return t.includes(code) || (name && t.includes(name));
+      });
+      if (storeMatched.length > 0) {
+        extra += '\n\n🏪 CỬA HÀNG LIÊN QUAN:';
+        storeMatched.forEach(store => {
+          const code = store['Store code']||store.store_code||'';
+          const name = store['Store name']||store.store_name||'';
+          extra += `\n→ ${code} - ${name}`;
+          // Find transactions for this store
+          const storeTx = TX.filter(tx => {
+            const assigned = (tx.Assigned||'').toLowerCase();
+            return assigned.includes(code.toLowerCase()) || assigned.includes(name.toLowerCase());
+          });
+          if (storeTx.length > 0) {
+            extra += `\n  Giao dịch: ${storeTx.length}`;
+            const txIn = storeTx.filter(x=>x.TxType==='in');
+            const txOut = storeTx.filter(x=>x.TxType==='out');
+            extra += ` (${txIn.length} nhập / ${txOut.length} xuất)`;
+            extra += `\n  Thiết bị tại store:`;
+            const deviceMap = {};
+            storeTx.filter(x=>x.TxType==='out').forEach(tx => {
+              const item = (tx.Item||'').trim();
+              const qty = Number(tx.Quantity)||0;
+              deviceMap[item] = (deviceMap[item]||0) + qty;
+            });
+            Object.entries(deviceMap).forEach(([item, qty]) => {
+              extra += `\n    • ${item}: ${qty}`;
+            });
+          }
+          // Show all store info
+          Object.entries(store).forEach(([k, v]) => {
+            if (k !== 'id' && v) extra += `\n  ${k}: ${v}`;
+          });
+        });
+      }
+
+      // If asking about specific serial number
+      const snPattern = /(?:sn|serial|s\/n)[:\s]*([a-z0-9\-]+)/i;
+      const snMatch = userText.match(snPattern);
+      if (snMatch) {
+        const searchSN = snMatch[1].toLowerCase();
+        extra += `\n\n🔎 TÌM SERIAL "${snMatch[1]}":`;
+        const txWithSN = TX.filter(tx => {
+          const sn = Array.isArray(tx.SN) ? tx.SN.join(' ') : (tx.SN||'');
+          return sn.toLowerCase().includes(searchSN);
+        });
+        if (txWithSN.length > 0) {
+          txWithSN.forEach(tx => {
+            extra += `\n  [${tx.TxType==='in'?'NHẬP':'XUẤT'}] ${tx.Item||''} → ${tx.Assigned||'N/A'} (${tx.Date||'N/A'}) SN:${Array.isArray(tx.SN)?tx.SN.join(', '):tx.SN||''}`;
+          });
+        } else {
+          extra += '\n  Không tìm thấy serial này trong hệ thống.';
+        }
+      }
+
+      return extra;
+    }
+
+    // ══════ STATE ══════
+    let chatHistory = [];
+    let isWaiting = false;
+    let lastContext = { store: null, item: null }; // conversation context for follow-up questions
+
+    // ══════ DOM ══════
+    const toggle = document.getElementById('chatToggle');
+    const chatbox = document.getElementById('chatbox');
+    const closeBtn = document.getElementById('chatClose');
+    const msgContainer = document.getElementById('chatMessages');
+    const input = document.getElementById('chatInput');
+    const sendBtn = document.getElementById('chatSend');
+    const suggestions = document.getElementById('chatSuggestions');
+    const badge = document.getElementById('chatBadge');
+
+    // ══════ TOGGLE ══════
+    toggle.addEventListener('click', () => {
+      chatbox.classList.toggle('open');
+      if (chatbox.classList.contains('open')) {
+        badge.style.display = 'none';
+        input.focus();
+      }
+    });
+    closeBtn.addEventListener('click', () => chatbox.classList.remove('open'));
+
+    // ══════ SUGGESTIONS ══════
+    suggestions.addEventListener('click', (e) => {
+      const btn = e.target.closest('.chat-suggest-btn');
+      if (!btn) return;
+      const msg = btn.getAttribute('data-msg');
+      if (msg) sendMessage(msg);
+    });
+
+    // ══════ SEND ══════
+    sendBtn.addEventListener('click', () => {
+      const msg = input.value.trim();
+      if (msg) sendMessage(msg);
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        const msg = input.value.trim();
+        if (msg) sendMessage(msg);
+      }
+    });
+
+    // ══════ CORE ══════
+    function getTime() {
+      return new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function appendMsg(text, role) {
+      const div = document.createElement('div');
+      div.className = `chat-msg ${role}`;
+      div.innerHTML = text + `<span class="msg-time">${getTime()}</span>`;
+      msgContainer.appendChild(div);
+      msgContainer.scrollTop = msgContainer.scrollHeight;
+    }
+
+    function showTyping() {
+      let el = document.getElementById('chatTyping');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'chatTyping';
+        el.className = 'chat-typing show';
+        el.innerHTML = '<span></span><span></span><span></span>';
+        msgContainer.appendChild(el);
+      } else {
+        el.classList.add('show');
+      }
+      msgContainer.scrollTop = msgContainer.scrollHeight;
+    }
+
+    function hideTyping() {
+      const el = document.getElementById('chatTyping');
+      if (el) el.remove();
+    }
+
+    // ══════ ACTIONS ══════
+    function executeActions(text) {
+      const actions = text.match(/\[ACTION:([^\]]+)\]/g);
+      if (!actions) return text;
+
+      let cleanText = text;
+      actions.forEach(actionStr => {
+        cleanText = cleanText.replace(actionStr, '').trim();
+        const parts = actionStr.replace('[ACTION:', '').replace(']', '').split(':');
+        const cmd = parts[0];
+        const arg = parts.slice(1).join(':');
+
+        try {
+          if (cmd === 'navigate' && typeof window.showPage === 'function') {
+            setTimeout(() => window.showPage(arg), 500);
+          } else if (cmd === 'search') {
+            setTimeout(() => {
+              const searchInput = document.getElementById('globalSearch');
+              if (searchInput) {
+                searchInput.value = arg;
+                searchInput.dispatchEvent(new Event('input'));
+              }
+            }, 500);
+          } else if (cmd === 'addtx' && typeof window.openModal === 'function') {
+            setTimeout(() => window.openModal(), 500);
+          }
+        } catch (e) {
+          console.warn('Chatbox action error:', e);
+        }
+      });
+
+      // Remove empty lines left by action removal
+      return cleanText.replace(/(<br>\s*){3,}/g, '<br><br>').replace(/^(<br>)+|(<br>)+$/g, '');
+    }
+
+    async function sendMessage(text) {
+      if (isWaiting) return;
+
+      // hide suggestions after first message
+      suggestions.style.display = 'none';
+
+      // add user message
+      appendMsg(escapeHtml(text), 'user');
+      input.value = '';
+      isWaiting = true;
+      sendBtn.disabled = true;
+
+      // Build context-aware message: send data to AI but store only original text in history
+      const dataSnapshot = getDataSnapshot();
+      const queryContext = getQueryContext(text);
+      const contextualText = text + dataSnapshot + queryContext;
+
+      // Store ONLY original text in history (avoid bloating with data snapshot every message)
+      chatHistory.push({ role: 'user', parts: [{ text: text }] });
+
+      showTyping();
+
+      try {
+        let reply = await callGemini(contextualText, text);
+        hideTyping();
+
+        // Parse and execute actions
+        const cleanReply = executeActions(reply);
+        appendMsg(formatReply(cleanReply), 'bot');
+        chatHistory.push({ role: 'model', parts: [{ text: cleanReply }] });
+
+        // Keep history manageable (last 20 messages, but always keep first data context)
+        if (chatHistory.length > 20) {
+          chatHistory = chatHistory.slice(-20);
+        }
+      } catch (err) {
+        hideTyping();
+        console.error('Chatbox AI error:', err);
+        let errMsg = 'Xin lỗi, tôi gặp lỗi khi xử lý. ';
+        if (!GEMINI_API_KEY) {
+          errMsg += '<br><br>⚠ <strong>Chưa cấu hình API key.</strong><br>Chatbot đang chạy ở chế độ offline — chỉ trả lời dựa trên dữ liệu thực.<br>Để dùng AI đầy đủ, hãy thêm Gemini API key.';
+        } else {
+          errMsg += 'Vui lòng thử lại sau.';
+        }
+        appendMsg(errMsg, 'bot');
+      }
+
+      isWaiting = false;
+      sendBtn.disabled = false;
+      input.focus();
+    }
+
+    async function callGemini(userText, originalText) {
+      if (!GEMINI_API_KEY) {
+        return fallbackDataResponse(originalText || userText);
+      }
+
+      // Build contents: history + current message with data context appended ONLY to last message
+      const historyWithoutLast = chatHistory.slice(0, -1);
+      const lastMsg = chatHistory[chatHistory.length - 1];
+      const enrichedContents = [
+        ...historyWithoutLast,
+        { role: lastMsg.role, parts: [{ text: userText }] } // userText already has data snapshot
+      ];
+
+      const body = {
+        system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        contents: enrichedContents,
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 2048,
+        }
+      };
+
+      const res = await fetch(GEMINI_URL + GEMINI_API_KEY, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error?.message || `HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      return data.candidates?.[0]?.content?.parts?.[0]?.text || 'Không có phản hồi.';
+    }
+
+    // ══════ SMART INTENT HELPERS ══════
+    function detectCountIntent(text) {
+      return /bao nhiêu|có mấy|tổng cộng|tổng số|\bcount\b|\btotal\b|đếm|how many/i.test(text);
+    }
+
+    function detectListIntent(text) {
+      return /danh sách|list|liệt kê|liệt ke|show|hiện|hiển thị|cho xem/i.test(text);
+    }
+
+    // ══════ FALLBACK WITH REAL DATA (no API key) ══════
+    function fallbackDataResponse(userText) {
+      const t = userText.toLowerCase();
+      const d = window.__IT_DATA;
+
+      if (!d || !d.TX) {
+        return 'Dữ liệu chưa được tải. Vui lòng đợi hệ thống khởi động xong rồi hỏi lại.';
+      }
+
+      const TX = d.TX || [];
+      const STOCK = d.STOCK || [];
+      const PC = d.PC || [];
+      const STORES = d.STORES || [];
+      const OFFICES = d.OFFICES || [];
+      const WAREHOUSES = d.WAREHOUSES || [];
+
+      const wantsCount = detectCountIntent(t);
+      const wantsList = detectListIntent(t);
+
+      // ══ DETECT STORE CODE IN USER TEXT (priority check) ══
+      const detectedStore = STORES.find(s => {
+        const code = (s['Store code']||s.store_code||'').trim();
+        if (!code) return false;
+        const codeRe = new RegExp('\\b' + code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i');
+        return codeRe.test(userText);
+      });
+      if (detectedStore) {
+        lastContext.store = detectedStore;
+        return handleStoreQuery(detectedStore, userText, TX);
+      }
+
+      // ══ FOLLOW-UP: use last context if question looks like a follow-up ══
+      const followUpKeywords = /phụ trách|incharge|điện thoại|phone|sđt|sdt|số đt|số dt|\bđt\b|ở đâu|địa chỉ|address|area manager|\bam\b|thiết bị|device|mở cửa|khai trương|thông tin|brand|thương hiệu|khu vực|region|serial|giao dịch|liên hệ|gọi|ai quản|ai phụ/i;
+      const isFollowUp = /^(ai |của |cho |số |còn |thế |vậy |nó )/i.test(t) || followUpKeywords.test(t);
+      if (isFollowUp && !detectedStore) {
+        // Check that user is NOT asking about a totally different topic
+        const isNewTopic = /tồn kho|stock|dashboard|tổng quan|overview|mini ?pc|warehouse|kho hàng|văn phòng|office|import|excel|phím tắt|shortcut|cửa hàng nào|store nào/i.test(t);
+        if (!isNewTopic) {
+          if (lastContext.store) {
+            return handleStoreQuery(lastContext.store, userText, TX);
+          } else {
+            // No store context yet — guide user
+            return 'Bạn muốn hỏi về cửa hàng nào? Hãy nhập mã store (ví dụ: **VA14**, **VN07**) để tôi tra cứu.';
+          }
+        }
+      }
+
+      // ══ OVERVIEW / DASHBOARD ══
+      if (/tổng quan|dashboard|overview|thống kê/i.test(t)) {
+        return handleOverview(TX, STOCK, STORES, OFFICES, WAREHOUSES, PC);
+      }
+
+      // ══ STOCK / TỒN KHO ══
+      if (/tồn kho|stock|trong kho|xem kho|còn kho/i.test(t)) {
+        return handleStockQuery(t, STOCK, wantsCount);
+      }
+
+      // ══ BROKEN / HỎNG ══
+      if (/hỏng|broken|sửa chữa|\bhư\b/i.test(t)) {
+        return handleBrokenQuery(TX, wantsCount);
+      }
+
+      // ══ STORE LIST ══
+      if (/cửa hàng|store/i.test(t) || (wantsList && /brand|region|khu vực/i.test(t))) {
+        return handleStoreList(t, STORES, TX, wantsCount);
+      }
+
+      // ══ MINI PC ══
+      if (/mini ?pc|minipc/i.test(t) || (/\bpc\b/i.test(t) && !/mini/i.test(t))) {
+        return handleMiniPCQuery(t, PC, STORES, wantsCount);
+      }
+
+      // ══ TRANSACTIONS ══
+      if (/giao dịch|transaction/i.test(t) || (/nhập|xuất/i.test(t) && /thiết bị|tb|giao|kho/i.test(t))) {
+        return handleTransactionQuery(t, TX, wantsCount);
+      }
+
+      // ══ OFFICE / WAREHOUSE ══
+      if (/văn phòng|office/i.test(t)) {
+        if (wantsCount) return `🏢 Hiện có **${OFFICES.length}** văn phòng trong hệ thống.`;
+        if (OFFICES.length === 0) return 'Hiện không có dữ liệu văn phòng.';
+        let resp = `🏢 **Văn phòng** (${OFFICES.length}):\n`;
+        OFFICES.forEach((o,i) => {
+          const name = (o.Name||o.name||o['Office name']||'').trim();
+          const addr = (o.Address||o.address||'').trim();
+          resp += `\n${i+1}. **${name}**${addr?' - '+addr:''}`;
+        });
+        return resp;
+      }
+      if (/warehouse/i.test(t) || (/kho/i.test(t) && /hàng/i.test(t))) {
+        if (wantsCount) return `🏭 Hiện có **${WAREHOUSES.length}** kho hàng trong hệ thống.`;
+        if (WAREHOUSES.length === 0) return 'Hiện không có dữ liệu kho hàng.';
+        let resp = `🏭 **Kho hàng** (${WAREHOUSES.length}):\n`;
+        WAREHOUSES.forEach((w,i) => {
+          const name = (w.Name||w.name||w['Warehouse name']||'').trim();
+          const addr = (w.Address||w.address||'').trim();
+          resp += `\n${i+1}. **${name}**${addr?' - '+addr:''}`;
+        });
+        return resp;
+      }
+
+      // ══ HƯỚNG DẪN ══
+      if (/phím tắt|shortcut/i.test(t)) {
+        return 'Các phím tắt:\n• **N** — Thêm giao dịch mới\n• **/** — Focus vào ô tìm kiếm\n• **Escape** — Đóng modal/dialog';
+      }
+      if (/import|excel/i.test(t)) {
+        return 'Để import dữ liệu:\n1. Vào trang **Import** (/import.html)\n2. Đăng nhập tài khoản admin\n3. Chọn file JSON hoặc Excel (.xlsx)\n4. Nhấn **Dry-run** để kiểm tra trước\n5. Nhấn **Import** để upload lên Supabase';
+      }
+
+      // ══ GREETINGS ══
+      if (/chào|hello|hi\b|hey/i.test(t)) {
+        const totalStock = STOCK.reduce((s,x)=>s+(Number(x.Stock)||0),0);
+        return `Chào bạn! 👋 Hệ thống đang có **${TX.length}** giao dịch, **${totalStock}** thiết bị tồn kho, **${STORES.length}** cửa hàng.\n\nHãy hỏi tôi về:\n• **Tồn kho** — số lượng thiết bị\n• **Giao dịch** — nhập/xuất gần đây\n• **Cửa hàng** — thông tin stores\n• **Thiết bị hỏng** — danh sách TB broken\n• Hoặc tên thiết bị/cửa hàng cụ thể!`;
+      }
+
+      // ══ GENERIC SEARCH (catch-all) ══
+      return handleGenericSearch(t, TX, STOCK, PC, STORES);
+    }
+
+    // ══════ HANDLER: STORE QUERY ══════
+    function handleStoreQuery(detectedStore, userText, TX) {
+      const code = (detectedStore['Store code']||detectedStore.store_code||'').trim();
+      const name = (detectedStore['Store name']||detectedStore.store_name||'').trim();
+      const brand = (detectedStore.Brand||detectedStore.brand||'').trim();
+
+      // Intent detection
+      const wantsDevices = /thiết bị|device|danh sách thiết bị|có gì|liệt kê/i.test(userText);
+      const wantsSerial = /serial|s\/n|sn /i.test(userText);
+      const wantsPhone = /số điện thoại|điện thoại|phone|sđt|sdt|số đt|số dt|\bđt\b|liên hệ|gọi/i.test(userText);
+      const wantsAddress = /địa chỉ|address|ở đâu|chỗ nào/i.test(userText);
+      const wantsIncharge = /incharge|người phụ trách|quản lý cửa hàng|supervisor|phụ trách|ai phụ|ai quản/i.test(userText);
+      const wantsAM = /\bam\b|area manager/i.test(userText);
+      const wantsOpenDate = /mở cửa|khai trương|open date|ngày mở/i.test(userText);
+      const wantsAllInfo = /thông tin|info|chi tiết store/i.test(userText);
+      const wantsBrand = /brand|thương hiệu|hãng/i.test(userText);
+      const wantsRegion = /region|khu vực|vùng/i.test(userText);
+      const hasSpecificInfoAsk = wantsPhone || wantsAddress || wantsIncharge || wantsAM || wantsOpenDate || wantsAllInfo || wantsBrand || wantsRegion;
+
+      // If user ONLY typed the store code with no clear intent, ask what they need
+      const textWithoutCode = userText.replace(new RegExp('\\b' + code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'gi'), '').trim();
+      const hasNoIntent = !wantsDevices && !hasSpecificInfoAsk && !wantsSerial && textWithoutCode.length < 3;
+      if (hasNoIntent) {
+        return `🏪 **${code} — ${name}**${brand ? ' (' + brand + ')' : ''}\n\nBạn cần thông tin gì từ **${code}**?`;
+      }
+
+      const showDevices = wantsDevices || (!hasSpecificInfoAsk);
+      const showInfo = hasSpecificInfoAsk && !wantsDevices;
+
+      // Build device data
+      const storeTxOut = TX.filter(tx => {
+        const assigned = (tx.Assigned||'').trim().toLowerCase();
+        return tx.TxType === 'out' && (
+          assigned.includes(code.toLowerCase()) ||
+          assigned === name.toLowerCase()
+        );
+      });
+
+      const deviceMap = {};
+      storeTxOut.forEach(tx => {
+        const item = (tx.Item||'').trim();
+        if (!item) return;
+        if (!deviceMap[item]) deviceMap[item] = { qty: 0, sns: [], dates: [] };
+        deviceMap[item].qty += Number(tx.Quantity) || 0;
+        const sn = tx.SN;
+        if (Array.isArray(sn)) {
+          sn.forEach(s => { const v = (s||'').trim(); if (v) deviceMap[item].sns.push(v); });
+        } else if (sn) {
+          (sn+'').split(/[\n,]+/).forEach(s => { const v = s.trim(); if (v) deviceMap[item].sns.push(v); });
+        }
+        if (tx.Date) deviceMap[item].dates.push(tx.Date);
+      });
+
+      const totalDevices = Object.values(deviceMap).reduce((s,d) => s+d.qty, 0);
+      const totalTypes = Object.keys(deviceMap).length;
+
+      let resp = `🏪 **${code} — ${name}**`;
+      if (brand) resp += ` (${brand})`;
+
+      // Show store info only when asked
+      if (showInfo) {
+        const incharge = detectedStore.Incharge || detectedStore.incharge || '';
+        const phone = detectedStore.Phone || detectedStore.phone || '';
+        const am = detectedStore.AM || detectedStore.am || '';
+        const openDate = detectedStore['Mở cửa'] || detectedStore['Open date'] || detectedStore.open_date || '';
+        const addr = detectedStore.Address || detectedStore.address || '';
+        const region = detectedStore.Region || detectedStore.region || '';
+
+        if (wantsAllInfo) {
+          if (incharge) resp += `\n👤 Incharge: **${incharge}**`;
+          if (phone) resp += `\n📞 Phone: **${phone}**`;
+          if (am) resp += `\n👔 AM: **${am}**`;
+          if (openDate) resp += `\n📅 Mở cửa: **${openDate}**`;
+          if (addr) resp += `\n📍 ${addr}`;
+          if (region) resp += `\n🗺 Khu vực: **${region}**`;
+        } else {
+          if (wantsPhone && phone) resp += `\n📞 Số điện thoại: **${phone}**`;
+          if (wantsPhone && incharge) resp += `\n👤 Liên hệ: **${incharge}**`;
+          if (wantsAddress && addr) resp += `\n📍 Địa chỉ: **${addr}**`;
+          if (wantsIncharge && incharge) resp += `\n👤 Incharge: **${incharge}**`;
+          if (wantsAM && am) resp += `\n👔 AM: **${am}**`;
+          if (wantsOpenDate && openDate) resp += `\n📅 Mở cửa: **${openDate}**`;
+          if (wantsBrand && brand) resp += `\n🏷 Brand: **${brand}**`;
+          if (wantsRegion && region) resp += `\n🗺 Khu vực: **${region}**`;
+        }
+      }
+
+      // Show device list
+      if (showDevices) {
+        if (totalDevices === 0) {
+          resp += `\n\nChưa có thiết bị nào được xuất cho cửa hàng này.`;
+        } else {
+          resp += `\n\n📦 **${totalDevices} thiết bị** gồm **${totalTypes} loại**:\n`;
+          Object.entries(deviceMap).sort((a,b) => b[1].qty - a[1].qty).forEach(([item, data], i) => {
+            resp += `\n${i+1}. **${item}** — SL: **${data.qty}**`;
+            if (wantsSerial && data.sns.length > 0) {
+              resp += `\n   S/N: ${data.sns.map(s => '`'+s+'`').join(', ')}`;
+            }
+          });
+        }
+      }
+
+      // IN transactions (returns)
+      const storeTxIn = TX.filter(tx => {
+        const assigned = (tx.Assigned||'').trim().toLowerCase();
+        return tx.TxType === 'in' && assigned.includes(code.toLowerCase());
+      });
+      if (storeTxIn.length > 0 && showDevices) {
+        const inTotal = storeTxIn.reduce((s,x) => s+(Number(x.Quantity)||0), 0);
+        resp += `\n\n↩ Nhập liên quan: **${storeTxIn.length}** GD (${inTotal} TB)`;
+      }
+
+      return resp;
+    }
+
+    // ══════ HANDLER: OVERVIEW ══════
+    function handleOverview(TX, STOCK, STORES, OFFICES, WAREHOUSES, PC) {
+      const totalIn = TX.filter(x=>x.TxType==='in').reduce((s,x)=>s+(Number(x.Quantity)||0),0);
+      const totalOut = TX.filter(x=>x.TxType==='out').reduce((s,x)=>s+(Number(x.Quantity)||0),0);
+      const totalStock = STOCK.reduce((s,x)=>s+(Number(x.Stock)||0),0);
+      const broken = TX.filter(x=>(x.Status||'').toLowerCase().includes('broken')).length;
+      return `📊 **Tổng quan hệ thống:**\n\n` +
+        `• Tổng giao dịch: **${TX.length}** (${TX.filter(x=>x.TxType==='in').length} nhập, ${TX.filter(x=>x.TxType==='out').length} xuất)\n` +
+        `• Thiết bị nhập: **${totalIn}** | Thiết bị xuất: **${totalOut}**\n` +
+        `• Tồn kho: **${totalStock}** (**${STOCK.length}** loại thiết bị)\n` +
+        `• Thiết bị hỏng: **${broken}**\n` +
+        `• Cửa hàng: **${STORES.length}** | Văn phòng: **${OFFICES.length}** | Kho: **${WAREHOUSES.length}**\n` +
+        `• Mini PC: **${PC.length}**`;
+    }
+
+    // ══════ HANDLER: STOCK QUERY ══════
+    function handleStockQuery(t, STOCK, wantsCount) {
+      if (STOCK.length === 0) return 'Hiện tại không có dữ liệu tồn kho.';
+
+      // ── Check for specific item/type name ──
+      const searchTerms = t.replace(/tồn kho|stock|còn|bao nhiêu|có|mấy|cái|chiếc|con|thiết bị|loại|nào|[?.,!]/gi, ' ').trim().split(/\s+/).filter(w => w.length > 1);
+      const matchedItems = STOCK.filter(s => {
+        const itemName = (s.Item||'').toLowerCase();
+        const typeName = (s.TypeDevice||'').toLowerCase();
+        return searchTerms.some(w => itemName.includes(w) || typeName.includes(w));
+      });
+
+      // If matched specific items, show only those
+      if (matchedItems.length > 0 && searchTerms.length > 0) {
+        const totalMatched = matchedItems.reduce((s,x)=>s+(Number(x.Stock)||0),0);
+        if (wantsCount) return `📦 Tìm thấy **${matchedItems.length}** loại, tổng **${totalMatched}** units.`;
+        let resp = `📦 **Tồn kho** — kết quả cho "${searchTerms.join(' ')}" (${matchedItems.length} loại, ${totalMatched} units):\n`;
+        matchedItems.sort((a,b)=>(Number(b.Stock)||0)-(Number(a.Stock)||0)).forEach((s,i) => {
+          resp += `\n${i+1}. **${(s.Item||'').trim()}**: **${Number(s.Stock)||0}** units (${(s.TypeDevice||'N/A').trim()})${(Number(s.Stock)||0)===0?' ⚠ HẾT':''}`;
+        });
+        return resp;
+      }
+
+      // ── Check for "hết hàng" / "out of stock" intent ──
+      if (/hết hàng|hết|out of stock|empty|= ?0/i.test(t)) {
+        const oos = STOCK.filter(s=>(Number(s.Stock)||0)===0);
+        if (oos.length === 0) return '✅ Tất cả thiết bị đều còn hàng!';
+        if (wantsCount) return `⚠ Có **${oos.length}** loại thiết bị đã hết hàng (0 units).`;
+        let resp = `⚠ **${oos.length} thiết bị hết hàng** (0 units):\n`;
+        oos.forEach((s,i) => { resp += `\n${i+1}. **${(s.Item||'').trim()}** (${(s.TypeDevice||'N/A').trim()})`; });
+        return resp;
+      }
+
+      // ── Full stock summary ──
+      if (wantsCount) {
+        const total = STOCK.reduce((s,x)=>s+(Number(x.Stock)||0),0);
+        return `📦 Tồn kho: **${total}** units gồm **${STOCK.length}** loại thiết bị.`;
+      }
+
+      const stockByType = {};
+      STOCK.forEach(s => {
+        const type = (s.TypeDevice||'Khác').trim();
+        if (!stockByType[type]) stockByType[type] = [];
+        stockByType[type].push({ name: (s.Item||'').trim(), qty: Number(s.Stock)||0 });
+      });
+      let resp = `📦 **Tồn kho hiện tại** (${STOCK.length} loại, tổng ${STOCK.reduce((s,x)=>s+(Number(x.Stock)||0),0)} units):\n`;
+      Object.entries(stockByType).sort((a,b) => b[1].reduce((s,x)=>s+x.qty,0) - a[1].reduce((s,x)=>s+x.qty,0)).forEach(([type, items]) => {
+        const total = items.reduce((s,x)=>s+x.qty, 0);
+        resp += `\n**${type}** (${total} units):`;
+        items.sort((a,b)=>b.qty-a.qty).forEach(item => {
+          resp += `\n  • ${item.name}: **${item.qty}**${item.qty === 0 ? ' ⚠ HẾT' : ''}`;
+        });
+      });
+      const oos = STOCK.filter(s=>(Number(s.Stock)||0)===0);
+      if (oos.length > 0) {
+        resp += `\n\n⚠ **${oos.length} thiết bị hết hàng** cần nhập thêm!`;
+      }
+      return resp;
+    }
+
+    // ══════ HANDLER: BROKEN ══════
+    function handleBrokenQuery(TX, wantsCount) {
+      const broken = TX.filter(x=>(x.Status||'').toLowerCase().includes('broken'));
+      if (broken.length === 0) return '✅ Hiện tại không có thiết bị nào đang trong trạng thái **hỏng (Broken)**.';
+      if (wantsCount) return `🔴 Có **${broken.length}** thiết bị hỏng (Broken) trong hệ thống.`;
+      let resp = `🔴 **Thiết bị hỏng** (${broken.length}):\n`;
+      broken.forEach((b,i) => {
+        resp += `\n${i+1}. **${(b.Item||'').trim()}**`;
+        resp += `\n   Giao cho: ${(b.Assigned||'N/A').trim()}`;
+        resp += `\n   Ngày: ${b.Date||'N/A'}`;
+        if (b.SN) resp += `\n   SN: ${Array.isArray(b.SN)?b.SN.join(', '):b.SN}`;
+        if (b.Remark) resp += `\n   Ghi chú: ${b.Remark}`;
+      });
+      return resp;
+    }
+
+    // ══════ HANDLER: STORE LIST ══════
+    function handleStoreList(t, STORES, TX, wantsCount) {
+      if (STORES.length === 0) return 'Hiện không có dữ liệu cửa hàng.';
+
+      // Check for brand/region filter
+      const brandFilter = t.match(/(?:brand|thương hiệu|hãng)\s*:?\s*(\w+)/i);
+      const regionFilter = t.match(/(?:region|khu vực|vùng|miền)\s*:?\s*(\w+)/i);
+      let filtered = STORES;
+      if (brandFilter) {
+        const b = brandFilter[1].toLowerCase();
+        filtered = filtered.filter(s => (s.Brand||s.brand||'').toLowerCase().includes(b));
+      }
+      if (regionFilter) {
+        const r = regionFilter[1].toLowerCase();
+        filtered = filtered.filter(s => (s.Region||s.region||'').toLowerCase().includes(r));
+      }
+
+      if (wantsCount) {
+        if (brandFilter || regionFilter) {
+          return `🏪 Có **${filtered.length}** cửa hàng${brandFilter?' brand '+brandFilter[1]:''}${regionFilter?' khu vực '+regionFilter[1]:''}.`;
+        }
+        return `🏪 Hệ thống có tổng cộng **${STORES.length}** cửa hàng.`;
+      }
+
+      // Group by brand
+      const brandMap = {};
+      filtered.forEach(s => {
+        const brand = (s.Brand||s.brand||'Khác').trim();
+        if (!brandMap[brand]) brandMap[brand] = [];
+        brandMap[brand].push(s);
+      });
+      let resp = `🏪 **Danh sách cửa hàng** (${filtered.length}):\n`;
+      Object.entries(brandMap).sort((a,b)=>b[1].length-a[1].length).forEach(([brand, stores]) => {
+        resp += `\n**${brand}** (${stores.length} cửa hàng):`;
+        stores.forEach(s => {
+          const code = s['Store code']||s.store_code||'';
+          const name = s['Store name']||s.store_name||'';
+          const region = s.Region||s.region||'';
+          resp += `\n  • ${code} - ${name}${region ? ' ('+region+')' : ''}`;
+        });
+      });
+      return resp;
+    }
+
+    // ══════ HANDLER: MINI PC ══════
+    function handleMiniPCQuery(t, PC, STORES, wantsCount) {
+      if (PC.length === 0) return 'Hiện không có dữ liệu Mini PC.';
+
+      // ── Filter by status ──
+      const statusFilter = t.match(/(?:status|trạng thái)\s*:?\s*(active|broken|new|old|still use)/i);
+      // ── Filter by store code ──
+      const storeFilter = t.match(/(?:tại|ở|store|cửa hàng)\s*:?\s*([A-Z]{2}\d+)/i) || t.match(/\b([A-Z]{2}\d{2,})\b/i);
+
+      let filtered = PC;
+      if (statusFilter) {
+        const st = statusFilter[1].toLowerCase();
+        filtered = filtered.filter(p => (p.Status||'').toLowerCase().includes(st));
+      }
+      if (storeFilter) {
+        const sc = storeFilter[1].toLowerCase();
+        filtered = filtered.filter(p => {
+          const assigned = (p.Assigned||p['Store code']||'').toLowerCase();
+          return assigned.includes(sc);
+        });
+      }
+
+      if (wantsCount) {
+        const label = statusFilter ? ` (${statusFilter[1]})` : '';
+        const storeLabel = storeFilter ? ` tại ${storeFilter[1].toUpperCase()}` : '';
+        return `🖥 Có **${filtered.length}** Mini PC${label}${storeLabel}.`;
+      }
+
+      let resp = `🖥 **Mini PC** (${filtered.length}):\n`;
+      const limit = Math.min(filtered.length, 30);
+      filtered.slice(0, limit).forEach((p,i) => {
+        const name = (p.Item||p.Name||'').trim();
+        const sn = (p.SN||p.Serial||'').trim();
+        const status = (p.Status||'').trim();
+        const assigned = (p.Assigned||p['Store code']||'').trim();
+        resp += `\n${i+1}. **${name}**${sn?' SN:`'+sn+'`':''}${status?' ('+status+')':''}${assigned?' → '+assigned:''}`;
+      });
+      if (filtered.length > limit) resp += `\n... và **${filtered.length-limit}** máy khác`;
+      return resp;
+    }
+
+    // ══════ HANDLER: TRANSACTION QUERY ══════
+    function handleTransactionQuery(t, TX, wantsCount) {
+      if (TX.length === 0) return 'Hiện không có dữ liệu giao dịch.';
+
+      // ── Detect IN/OUT filter ──
+      const wantsIn = /\bnhập\b|\bin\b|import/i.test(t) && !/xuất/i.test(t);
+      const wantsOut = /\bxuất\b|\bout\b|export/i.test(t) && !/nhập/i.test(t);
+
+      let filtered = TX;
+      let typeLabel = '';
+      if (wantsIn) { filtered = TX.filter(x=>x.TxType==='in'); typeLabel = ' nhập (IN)'; }
+      if (wantsOut) { filtered = TX.filter(x=>x.TxType==='out'); typeLabel = ' xuất (OUT)'; }
+
+      // ── Detect specific item filter ──
+      const itemWords = t.replace(/giao dịch|transaction|nhập|xuất|bao nhiêu|có|mấy|gần đây|thiết bị|[?.,!]/gi, ' ').trim().split(/\s+/).filter(w => w.length > 1);
+      if (itemWords.length > 0) {
+        const itemFiltered = filtered.filter(tx => {
+          const hay = ((tx.Item||'') + ' ' + (tx.Assigned||'')).toLowerCase();
+          return itemWords.some(w => hay.includes(w));
+        });
+        if (itemFiltered.length > 0) {
+          filtered = itemFiltered;
+          typeLabel += ` "${itemWords.join(' ')}"`;
+        }
+      }
+
+      if (wantsCount) {
+        const total = filtered.reduce((s,x)=>s+(Number(x.Quantity)||0),0);
+        return `📋 Có **${filtered.length}** giao dịch${typeLabel} (tổng **${total}** thiết bị).`;
+      }
+
+      const recent = [...filtered].sort((a,b)=>((b.Date||'').localeCompare(a.Date||''))).slice(0, 10);
+      let resp = `📋 **Giao dịch${typeLabel}** (${filtered.length} tổng, hiện ${recent.length} mới nhất):\n`;
+      recent.forEach((tx,i) => {
+        const type = tx.TxType === 'in' ? '↑ NHẬP' : '↓ XUẤT';
+        resp += `\n${i+1}. ${type} **${(tx.Item||'').trim()}** x**${Number(tx.Quantity)||0}**`;
+        if (tx.Assigned) resp += ` → ${tx.Assigned}`;
+        if (tx.Date) resp += ` (${tx.Date})`;
+        if (tx.Status) resp += ` [${tx.Status}]`;
+      });
+      if (!wantsIn && !wantsOut) {
+        resp += `\n\nTổng nhập: **${TX.filter(x=>x.TxType==='in').reduce((s,x)=>s+(Number(x.Quantity)||0),0)}** | Tổng xuất: **${TX.filter(x=>x.TxType==='out').reduce((s,x)=>s+(Number(x.Quantity)||0),0)}**`;
+      }
+      return resp;
+    }
+
+    // ══════ HANDLER: GENERIC SEARCH ══════
+    const STOPWORDS = new Set(['có','là','gì','và','của','cho','các','một','được','này','đã','hay','khi','thì','với','để','từ','tôi','bạn','không','còn','lại','nào','nữa','theo','rồi','vào','ra','lên','bao','nhiêu','đó','đây','hoặc','như','cũng']);
+    function handleGenericSearch(t, TX, STOCK, PC, STORES) {
+      // Use words >= 2 chars but filter out Vietnamese stopwords
+      const words = t.replace(/[?.,!]/g, ' ').split(/\s+/).filter(w => w.length >= 2 && !STOPWORDS.has(w));
+      const found = [];
+
+      // Search in transactions
+      TX.forEach(tx => {
+        const hay = [tx.Item, tx.Assigned, Array.isArray(tx.SN)?tx.SN.join(' '):(tx.SN||''), tx.Status].filter(Boolean).join(' ').toLowerCase();
+        if (words.some(w => hay.includes(w))) found.push({ type: 'tx', data: tx });
+      });
+      // Search in stock
+      STOCK.forEach(s => {
+        const hay = [s.Item, s.TypeDevice].filter(Boolean).join(' ').toLowerCase();
+        if (words.some(w => hay.includes(w))) found.push({ type: 'stock', data: s });
+      });
+      // Search in stores
+      STORES.forEach(s => {
+        const hay = [s['Store code']||s.store_code, s['Store name']||s.store_name, s.Brand||s.brand, s.Region||s.region].filter(Boolean).join(' ').toLowerCase();
+        if (words.some(w => hay.includes(w))) found.push({ type: 'store', data: s });
+      });
+      // Search in Mini PC
+      PC.forEach(p => {
+        const hay = [p.Item||p.Name, p.SN||p.Serial, p.Assigned||p['Store code']].filter(Boolean).join(' ').toLowerCase();
+        if (words.some(w => hay.includes(w))) found.push({ type: 'pc', data: p });
+      });
+
+      if (found.length > 0) {
+        let resp = `🔍 Tìm thấy **${found.length}** kết quả liên quan:\n`;
+        found.slice(0, 10).forEach((m,i) => {
+          if (m.type === 'tx') {
+            const tx = m.data;
+            resp += `\n${i+1}. [${tx.TxType==='in'?'NHẬP':'XUẤT'}] **${(tx.Item||'').trim()}** x${tx.Quantity||0}${tx.Assigned?' → '+tx.Assigned:''}${tx.Date?' ('+tx.Date+')':''}`;
+          } else if (m.type === 'stock') {
+            resp += `\n${i+1}. [KHO] **${(m.data.Item||'').trim()}**: ${m.data.Stock} units (${m.data.TypeDevice||'N/A'})`;
+          } else if (m.type === 'store') {
+            const s = m.data;
+            resp += `\n${i+1}. [STORE] **${s['Store code']||s.store_code||''}** - ${s['Store name']||s.store_name||''}`;
+          } else if (m.type === 'pc') {
+            const p = m.data;
+            resp += `\n${i+1}. [PC] **${(p.Item||p.Name||'').trim()}** SN:${p.SN||p.Serial||'N/A'} → ${p.Assigned||p['Store code']||'N/A'}`;
+          }
+        });
+        if (found.length > 10) resp += `\n... và **${found.length-10}** kết quả khác`;
+        return resp;
+      }
+
+      return `Mình chưa hiểu rõ câu hỏi của bạn 🤔 Có thể cho mình thêm thông tin bạn muốn hỏi không?\n\nVí dụ:\n• Mã cửa hàng: **VA14**, **VN07**...\n• **Tồn kho** / **Giao dịch** / **Thiết bị hỏng**\n• **Tổng quan** hệ thống\n• **Mini PC** / **Cửa hàng**`;
+    }
+
+    // ══════ UTILS ══════
+    function escapeHtml(str) {
+      const d = document.createElement('div');
+      d.textContent = str;
+      return d.innerHTML;
+    }
+
+    function formatReply(text) {
+      return text
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n/g, '<br>')
+        .replace(/`([^`]+)`/g, '<code style="background:var(--surface2);padding:1px 5px;border-radius:3px;font-size:12px">$1</code>');
+    }
+
+    // Close chatbox with Escape
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && chatbox.classList.contains('open')) {
+        chatbox.classList.remove('open');
+      }
+    });
+  })();
+  </script>
 </body>
 </html>

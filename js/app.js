@@ -1,35 +1,12 @@
-﻿import { firebaseConfig } from "./firebase-config.js";
+﻿import { supabaseConfig } from "./supabase-config.js";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-import {
-  getAuth,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  signOut,
-  setPersistence,
-  browserSessionPersistence,
-} from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
-import {
-  getFirestore,
-  collection,
-  getDocs,
-  query,
-  where,
-  doc,
-  getDoc,
-  setDoc,
-  writeBatch,
-  serverTimestamp,
-  deleteDoc,
-  updateDoc,
-} from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
-
-// ── FIREBASE INIT ──────────────────────────────────────────
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const authPersistenceReady = setPersistence(auth, browserSessionPersistence).catch((e) => {
-  console.warn("Không thể bật session persistence:", e);
+// ── SUPABASE INIT ──────────────────────────────────────────
+const supabase = createClient(supabaseConfig.url, supabaseConfig.anonKey, {
+  auth: {
+    persistSession: true,
+    storage: window.sessionStorage,
+  },
 });
 
 // ── STATE ──────────────────────────────────────────────────
@@ -44,17 +21,17 @@ function isViewer() { return currentRole === "viewer"; }
 async function loadUserRole(user) {
   if (!user) { currentRole = null; return; }
   try {
-    const snap = await getDoc(doc(db, "users", user.uid));
-    if (snap.exists()) {
-      currentRole = snap.data().role || "viewer";
+    const { data, error } = await supabase.from("users").select("role").eq("id", user.id).single();
+    if (data && !error) {
+      currentRole = data.role || "viewer";
     } else {
       // First login — auto-create user doc as viewer
-      const newUser = {
+      await supabase.from("users").upsert({
+        id: user.id,
         email: user.email,
         role: "viewer",
-        createdAt: serverTimestamp(),
-      };
-      await setDoc(doc(db, "users", user.uid), newUser);
+        created_at: new Date().toISOString(),
+      });
       currentRole = "viewer";
     }
   } catch (e) {
@@ -137,7 +114,6 @@ function closeAuthModal() {
 }
 
 async function doSignIn() {
-  await authPersistenceReady;
   const email = safeTrim($("authEmailInput").value);
   const pass = $("authPassInput").value ?? "";
   if (!email || !pass) {
@@ -145,7 +121,8 @@ async function doSignIn() {
     return;
   }
   try {
-    await signInWithEmailAndPassword(auth, email, pass);
+    const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
+    if (error) throw error;
     closeAuthModal();
     showToast("Đăng nhập thành công.", "success");
   } catch (e) {
@@ -155,7 +132,7 @@ async function doSignIn() {
 
 async function doSignOut() {
   try {
-    await signOut(auth);
+    await supabase.auth.signOut();
     showToast("Đã đăng xuất.", "success");
   } catch (e) {
     showToast(`Đăng xuất thất bại: ${e?.message || e}`, "error");
@@ -215,11 +192,70 @@ function onSearch() {
   render();
 }
 
-// ── FIRESTORE LOAD ─────────────────────────────────────────
+// ── SUPABASE ROW MAPPERS (snake_case → mixed case aliases) ──
+function mapTxRow(row) {
+  return {
+    ...row, id: row.id, No: row.no, Item: row.item, itemKey: row.item_key,
+    Description: row.description, Date: row.date, TxType: row.tx_type,
+    Quantity: row.quantity, Unit: row.unit, Assigned: row.assigned,
+    Status: row.status, SN: row.sn || [], Remark: row.remark,
+  };
+}
+function mapStockRow(row) {
+  return {
+    ...row, id: row.id, No: row.no, Item: row.item, itemKey: row.item_key,
+    TypeDevice: row.type_device, Stock: row.stock, Note: row.note, SN: row.sn,
+  };
+}
+function mapStoreRow(row) {
+  return {
+    ...row, id: row.id,
+    "Store code": row.store_code, store_code: row.store_code,
+    "Store name": row.store_name, store_name: row.store_name,
+    storeKey: row.store_key,
+    Brand: row.brand, brand: row.brand, Brand2: row.brand2, brand2: row.brand2,
+    Type: row.type, type: row.type, "Type 2": row.type2, type2: row.type2,
+    Incharge: row.incharge, incharge: row.incharge,
+    Position: row.position, position: row.position,
+    Phone: row.phone, phone: row.phone, Email: row.email, email: row.email,
+    AM: row.am, am: row.am, "Open date": row.open_date, open_date: row.open_date,
+    TotalArea: row.total_area, total_area: row.total_area,
+    SellArea: row.sell_area, sell_area: row.sell_area,
+    Region: row.region, region: row.region,
+    "Cost Center": row.cost_center, cost_center: row.cost_center,
+    Address: row.address, address: row.address,
+    O2O: row.o2o, o2o: row.o2o,
+  };
+}
+function mapOfficeRow(row) {
+  return {
+    ...row, id: row.id, code: row.code, Code: row.code, name: row.name, Name: row.name,
+    "Office code": row.code, "Office name": row.name,
+    location: row.location, Location: row.location,
+    incharge: row.incharge, Incharge: row.incharge,
+  };
+}
+function mapWarehouseRow(row) {
+  return {
+    ...row, id: row.id, code: row.code, Code: row.code, name: row.name, Name: row.name,
+    "Warehouse code": row.code, "Warehouse name": row.name,
+    location: row.location, Location: row.location,
+    incharge: row.incharge, Incharge: row.incharge,
+  };
+}
+
+const TABLE_MAPPERS = {
+  transactions: mapTxRow, stock: mapStockRow, stores: mapStoreRow,
+  offices: mapOfficeRow, warehouses: mapWarehouseRow,
+};
+
+// ── SUPABASE LOAD ─────────────────────────────────────────
 async function loadCollection(name) {
   try {
-    const snap = await getDocs(collection(db, name));
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const { data, error } = await supabase.from(name).select("*");
+    if (error) throw error;
+    const mapper = TABLE_MAPPERS[name];
+    return mapper ? (data || []).map(mapper) : (data || []);
   } catch (e) {
     console.warn(`loadCollection("${name}") failed:`, e?.message || e);
     return [];
@@ -252,6 +288,9 @@ async function loadAll() {
     $("cnt-stores").textContent = STORES.length;
     $("cnt-offices").textContent = OFFICES.length;
     $("cnt-warehouses").textContent = WAREHOUSES.length;
+
+    // ── EXPOSE DATA FOR AI CHATBOX ──
+    window.__IT_DATA = { TX, STOCK, PC, STORES, OFFICES, WAREHOUSES };
 
     buildAutocompleteSources();
     render();
@@ -889,30 +928,29 @@ async function submitStore() {
   const name     = safeTrim($("stName").value);
   if (!code || !name) { showToast("Vui lòng nhập Store code và Store name.", "error"); return; }
   const payload = {
-    "Store code":  code,
-    "Store name":  name,
-    store_code: code, store_name: name, storeKey: code.toLowerCase(),
-    Brand:         safeTrim($("stBrand").value),
-    Brand2:        safeTrim($("stBrand2").value),
-    Type:          safeTrim($("stType").value),
-    "Type 2":      safeTrim($("stType2").value),
-    Incharge:      safeTrim($("stIncharge").value),
-    Position:      safeTrim($("stPosition").value),
-    Phone:         safeTrim($("stPhone").value),
-    Email:         safeTrim($("stEmail").value),
-    AM:            safeTrim($("stAM").value),
-    "Open date":   safeTrim($("stOpenDate").value),
-    TotalArea:     parseFloat($("stTotalArea").value) || 0,
-    SellArea:      parseFloat($("stSellArea").value) || 0,
-    Region:        safeTrim($("stRegion").value),
-    "Cost Center": safeTrim($("stCostCenter").value),
-    Address:       safeTrim($("stAddress").value),
-    updatedAt: serverTimestamp(),
+    store_code: code, store_name: name, store_key: code.toLowerCase(),
+    brand:         safeTrim($("stBrand").value),
+    brand2:        safeTrim($("stBrand2").value),
+    type:          safeTrim($("stType").value),
+    type2:         safeTrim($("stType2").value),
+    incharge:      safeTrim($("stIncharge").value),
+    position:      safeTrim($("stPosition").value),
+    phone:         safeTrim($("stPhone").value),
+    email:         safeTrim($("stEmail").value),
+    am:            safeTrim($("stAM").value),
+    open_date:     safeTrim($("stOpenDate").value),
+    total_area:    parseFloat($("stTotalArea").value) || 0,
+    sell_area:     parseFloat($("stSellArea").value) || 0,
+    region:        safeTrim($("stRegion").value),
+    cost_center:   safeTrim($("stCostCenter").value),
+    address:       safeTrim($("stAddress").value),
+    updated_at: new Date().toISOString(),
   };
   try {
     $("btnSubmitStore").disabled = true;
-    await updateDoc(doc(db, "stores", String(editingStoreId)), payload);
-    Object.assign(store, payload);
+    const { error } = await supabase.from("stores").update(payload).eq("id", String(editingStoreId));
+    if (error) throw error;
+    Object.assign(store, mapStoreRow({ ...store, ...payload }));
     buildAutocompleteSources();
     showToast(`✓ Đã cập nhật: ${name}`, "success");
     closeStoreModal();
@@ -932,10 +970,9 @@ async function toggleO2O(storeCode) {
   const isOn = !!safeTrim(store.O2O || store.o2o);
   const newVal = isOn ? "" : "O2O";
   store.O2O = newVal;
-  if (store.o2o !== undefined) store.o2o = newVal;
+  store.o2o = newVal;
   try {
-    const ref = doc(db, "stores", store.id);
-    await updateDoc(ref, { O2O: newVal, updatedAt: serverTimestamp() });
+    await supabase.from("stores").update({ o2o: newVal, updated_at: new Date().toISOString() }).eq("id", store.id);
   } catch (e) {
     console.error("toggleO2O:", e);
   }
@@ -1055,17 +1092,15 @@ async function submitOffice() {
   try {
     $("btnSubmitOffice").disabled = true;
     if (editingOfficeId != null) {
-      const ref = doc(db, "offices", String(editingOfficeId));
-      await updateDoc(ref, { code, name, location, incharge, updatedAt: serverTimestamp() });
+      const { error } = await supabase.from("offices").update({ code, name, location, incharge, updated_at: new Date().toISOString() }).eq("id", String(editingOfficeId));
+      if (error) throw error;
       const o = OFFICES.find((x) => String(x.id) === String(editingOfficeId));
-      if (o) { o.code = code; o.name = name; o.location = location; o.incharge = incharge; }
+      if (o) { o.code = code; o.name = name; o.location = location; o.incharge = incharge; o.Code = code; o.Name = name; o.Location = location; o.Incharge = incharge; }
       showToast(`✓ Đã cập nhật văn phòng: ${name}`, "success");
     } else {
-      const ref = doc(collection(db, "offices"));
-      const batch = writeBatch(db);
-      batch.set(ref, { code, name, location, incharge, createdAt: serverTimestamp() });
-      await batch.commit();
-      OFFICES.push({ id: ref.id, code, name, location, incharge });
+      const { data, error } = await supabase.from("offices").insert({ code, name, location, incharge, created_at: new Date().toISOString() }).select().single();
+      if (error) throw error;
+      OFFICES.push(mapOfficeRow(data));
       $("cnt-offices").textContent = OFFICES.length;
       showToast(`✓ Đã thêm văn phòng: ${name}`, "success");
     }
@@ -1085,7 +1120,8 @@ async function deleteOffice(id) {
   if (!o) return;
   if (!confirm(`Xoá văn phòng "${safeTrim(o.name || o.Name || "")}"?`)) return;
   try {
-    await deleteDoc(doc(db, "offices", String(id)));
+    const { error } = await supabase.from("offices").delete().eq("id", String(id));
+    if (error) throw error;
     OFFICES = OFFICES.filter((x) => String(x.id) !== String(id));
     $("cnt-offices").textContent = OFFICES.length;
     buildAutocompleteSources();
@@ -1229,17 +1265,15 @@ async function submitWarehouse() {
   try {
     $("btnSubmitWarehouse").disabled = true;
     if (editingWarehouseId != null) {
-      const ref = doc(db, "warehouses", String(editingWarehouseId));
-      await updateDoc(ref, { code, name, location, incharge, updatedAt: serverTimestamp() });
+      const { error } = await supabase.from("warehouses").update({ code, name, location, incharge, updated_at: new Date().toISOString() }).eq("id", String(editingWarehouseId));
+      if (error) throw error;
       const w = WAREHOUSES.find((x) => String(x.id) === String(editingWarehouseId));
-      if (w) { w.code = code; w.name = name; w.location = location; w.incharge = incharge; }
+      if (w) { w.code = code; w.name = name; w.location = location; w.incharge = incharge; w.Code = code; w.Name = name; w.Location = location; w.Incharge = incharge; }
       showToast(`✓ Đã cập nhật kho: ${name}`, "success");
     } else {
-      const ref = doc(collection(db, "warehouses"));
-      const batch = writeBatch(db);
-      batch.set(ref, { code, name, location, incharge, createdAt: serverTimestamp() });
-      await batch.commit();
-      WAREHOUSES.push({ id: ref.id, code, name, location, incharge });
+      const { data, error } = await supabase.from("warehouses").insert({ code, name, location, incharge, created_at: new Date().toISOString() }).select().single();
+      if (error) throw error;
+      WAREHOUSES.push(mapWarehouseRow(data));
       $("cnt-warehouses").textContent = WAREHOUSES.length;
       showToast(`✓ Đã thêm kho: ${name}`, "success");
     }
@@ -1259,7 +1293,8 @@ async function deleteWarehouse(id) {
   if (!w) return;
   if (!confirm(`Xoá kho "${safeTrim(w.name || w.Name || "")}"?`)) return;
   try {
-    await deleteDoc(doc(db, "warehouses", String(id)));
+    const { error } = await supabase.from("warehouses").delete().eq("id", String(id));
+    if (error) throw error;
     WAREHOUSES = WAREHOUSES.filter((x) => String(x.id) !== String(id));
     $("cnt-warehouses").textContent = WAREHOUSES.length;
     buildAutocompleteSources();
@@ -1488,22 +1523,22 @@ async function deleteTx(txId) {
   const t = TX.find((x) => String(x.id) === String(txId));
   if (!t || !confirm(`Xoá giao dịch "${safeTrim(t.Item)}" (${safeTrim(t.Date)})?`)) return;
   try {
-    const batch = writeBatch(db);
-    batch.delete(doc(db, "transactions", String(txId)));
+    // Delete the transaction
+    const { error: delErr } = await supabase.from("transactions").delete().eq("id", String(txId));
+    if (delErr) throw delErr;
 
     // Revert stock: IN → subtract back, OUT → add back
     const itemKey = keyOf(safeTrim(t.Item));
     if (itemKey) {
-      const stockSnap = await getDocs(query(collection(db, "stock"), where("itemKey", "==", itemKey)));
-      if (!stockSnap.empty) {
-        const sd = stockSnap.docs[0];
+      const { data: stockRows } = await supabase.from("stock").select("*").eq("item_key", itemKey);
+      if (stockRows && stockRows.length > 0) {
+        const sd = stockRows[0];
         const revert = t.TxType === "in" ? -toNumber(t.Quantity, 0) : toNumber(t.Quantity, 0);
-        const newStock = Math.max(0, toNumber(sd.data().Stock, 0) + revert);
-        batch.update(sd.ref, { Stock: newStock, updatedAt: serverTimestamp() });
+        const newStock = Math.max(0, toNumber(sd.stock, 0) + revert);
+        await supabase.from("stock").update({ stock: newStock, updated_at: new Date().toISOString() }).eq("id", sd.id);
       }
     }
 
-    await batch.commit();
     TX = TX.filter((x) => String(x.id) !== String(txId));
     $("cnt-tx").textContent = TX.length;
 
@@ -1572,7 +1607,7 @@ window.acAssignedInput = acAssignedInput;
 window.acAssignedSelect = acAssignedSelect;
 window.acAssignedKey = acAssignedKey;
 
-// ── SUBMIT TX (FIRESTORE) ──────────────────────────────────
+// ── SUBMIT TX (SUPABASE) ───────────────────────────────────
 async function submitTransaction() {
   if (!requireAuth("lưu giao dịch")) return;
 
@@ -1593,54 +1628,54 @@ async function submitTransaction() {
       if (!oldTx) { showToast("Không tìm thấy giao dịch.", "error"); return; }
 
       const updatePayload = {
-        Item: item,
-        itemKey: keyOf(item),
-        Description: safeTrim($("fDesc").value),
-        Date: date,
-        TxType: newTxType,
-        Quantity: qty,
-        Unit: safeTrim($("fUnit").value) || "pcs",
-        Assigned: safeTrim($("fAssigned").value),
-        Status: safeTrim($("fStatus").value),
-        SN: getTxSerials(),
-        updatedAt: serverTimestamp(),
-        updatedBy: currentUser?.uid || null,
+        item,
+        item_key: keyOf(item),
+        description: safeTrim($("fDesc").value),
+        date,
+        tx_type: newTxType,
+        quantity: qty,
+        unit: safeTrim($("fUnit").value) || "pcs",
+        assigned: safeTrim($("fAssigned").value),
+        status: safeTrim($("fStatus").value),
+        sn: getTxSerials(),
+        updated_at: new Date().toISOString(),
+        updated_by: currentUser?.id || null,
       };
 
-      const batch = writeBatch(db);
-      batch.update(doc(db, "transactions", String(editingTxId)), updatePayload);
+      const { error: txErr } = await supabase.from("transactions").update(updatePayload).eq("id", String(editingTxId));
+      if (txErr) throw txErr;
 
       const oldItemKey = keyOf(safeTrim(oldTx.Item));
       const newItemKey = keyOf(item);
 
       if (oldItemKey === newItemKey) {
-        const stockSnap = await getDocs(query(collection(db, "stock"), where("itemKey", "==", newItemKey)));
-        if (!stockSnap.empty) {
-          const sd = stockSnap.docs[0];
+        const { data: stockRows } = await supabase.from("stock").select("*").eq("item_key", newItemKey);
+        if (stockRows && stockRows.length > 0) {
+          const sd = stockRows[0];
           const revert = oldTx.TxType === "in" ? -toNumber(oldTx.Quantity, 0) : toNumber(oldTx.Quantity, 0);
           const apply  = newTxType === "in" ? qty : -qty;
-          batch.update(sd.ref, { Stock: Math.max(0, toNumber(sd.data().Stock, 0) + revert + apply), updatedAt: serverTimestamp() });
+          await supabase.from("stock").update({ stock: Math.max(0, toNumber(sd.stock, 0) + revert + apply), updated_at: new Date().toISOString() }).eq("id", sd.id);
         }
       } else {
-        const [oldSnap, newSnap] = await Promise.all([
-          getDocs(query(collection(db, "stock"), where("itemKey", "==", oldItemKey))),
-          getDocs(query(collection(db, "stock"), where("itemKey", "==", newItemKey))),
+        const [{ data: oldRows }, { data: newRows }] = await Promise.all([
+          supabase.from("stock").select("*").eq("item_key", oldItemKey),
+          supabase.from("stock").select("*").eq("item_key", newItemKey),
         ]);
-        if (!oldSnap.empty) {
-          const od = oldSnap.docs[0];
+        if (oldRows && oldRows.length > 0) {
+          const od = oldRows[0];
           const revert = oldTx.TxType === "in" ? -toNumber(oldTx.Quantity, 0) : toNumber(oldTx.Quantity, 0);
-          batch.update(od.ref, { Stock: Math.max(0, toNumber(od.data().Stock, 0) + revert), updatedAt: serverTimestamp() });
+          await supabase.from("stock").update({ stock: Math.max(0, toNumber(od.stock, 0) + revert), updated_at: new Date().toISOString() }).eq("id", od.id);
         }
-        if (!newSnap.empty) {
-          const nd = newSnap.docs[0];
+        if (newRows && newRows.length > 0) {
+          const nd = newRows[0];
           const apply = newTxType === "in" ? qty : -qty;
-          batch.update(nd.ref, { Stock: Math.max(0, toNumber(nd.data().Stock, 0) + apply), updatedAt: serverTimestamp() });
+          await supabase.from("stock").update({ stock: Math.max(0, toNumber(nd.stock, 0) + apply), updated_at: new Date().toISOString() }).eq("id", nd.id);
         }
       }
 
-      await batch.commit();
+      // Update local state with mapped row
       const idx = TX.findIndex((x) => String(x.id) === String(editingTxId));
-      if (idx >= 0) TX[idx] = { ...TX[idx], ...updatePayload };
+      if (idx >= 0) TX[idx] = mapTxRow({ ...TX[idx], ...updatePayload });
 
       STOCK = (await loadCollection("stock")).map((s) => ({ ...s, Stock: toNumber(s.Stock, 0), TypeDevice: safeTrim(s.TypeDevice) }));
       $("cnt-stock").textContent = STOCK.length;
@@ -1654,9 +1689,9 @@ async function submitTransaction() {
 
       // Check stock availability for OUT transactions
       if (newTxType === "out") {
-        const itemKey = keyOf(item);
-        const stockSnap = await getDocs(query(collection(db, "stock"), where("itemKey", "==", itemKey)));
-        const currentStock = stockSnap.empty ? 0 : toNumber(stockSnap.docs[0].data().Stock, 0);
+        const itemKeyCheck = keyOf(item);
+        const { data: stockCheck } = await supabase.from("stock").select("stock").eq("item_key", itemKeyCheck);
+        const currentStock = (stockCheck && stockCheck.length > 0) ? toNumber(stockCheck[0].stock, 0) : 0;
         if (currentStock <= 0) {
           showToast(`⚠ "${item}" không có trong tồn kho (stock = 0). Không thể xuất.`, "error");
           $("btnSubmitTx").disabled = false;
@@ -1670,59 +1705,55 @@ async function submitTransaction() {
         }
       }
 
-      const txRef = doc(collection(db, "transactions"));
-      const batch = writeBatch(db);
-
-      const payload = {
-        No: TX.length + 1,
-        Item: item,
-        itemKey: keyOf(item),
-        Description: safeTrim($("fDesc").value),
-        Date: date,
-        TxType: newTxType,
-        Quantity: qty,
-        Unit: safeTrim($("fUnit").value) || "pcs",
-        Assigned: safeTrim($("fAssigned").value),
-        Status: safeTrim($("fStatus").value),
-        SN: getTxSerials(),
-        Remark: "",
-        createdAt: serverTimestamp(),
-        createdBy: currentUser?.uid || null,
+      const dbPayload = {
+        no: TX.length + 1,
+        item,
+        item_key: keyOf(item),
+        description: safeTrim($("fDesc").value),
+        date,
+        tx_type: newTxType,
+        quantity: qty,
+        unit: safeTrim($("fUnit").value) || "pcs",
+        assigned: safeTrim($("fAssigned").value),
+        status: safeTrim($("fStatus").value),
+        sn: getTxSerials(),
+        remark: "",
+        created_at: new Date().toISOString(),
+        created_by: currentUser?.id || null,
       };
-      batch.set(txRef, payload);
+
+      const { data: insertedTx, error: txErr } = await supabase.from("transactions").insert(dbPayload).select().single();
+      if (txErr) throw txErr;
 
       const itemKey = keyOf(item);
-      const stockSnap = await getDocs(query(collection(db, "stock"), where("itemKey", "==", itemKey)));
+      const { data: stockRows } = await supabase.from("stock").select("*").eq("item_key", itemKey);
       const typeDevice = safeTrim($("fTypeDevice").value);
 
-      if (!stockSnap.empty) {
-        const stockDoc = stockSnap.docs[0];
-        const sData = stockDoc.data();
-        const next = Math.max(0, toNumber(sData.Stock, 0) + (newTxType === "in" ? qty : -qty));
-        batch.update(stockDoc.ref, {
-          Item: item, itemKey,
-          TypeDevice: safeTrim(sData.TypeDevice) || typeDevice || "Other",
-          Stock: next, updatedAt: serverTimestamp(),
-        });
+      if (stockRows && stockRows.length > 0) {
+        const sd = stockRows[0];
+        const next = Math.max(0, toNumber(sd.stock, 0) + (newTxType === "in" ? qty : -qty));
+        await supabase.from("stock").update({
+          item, item_key: itemKey,
+          type_device: sd.type_device || typeDevice || "Other",
+          stock: next, updated_at: new Date().toISOString(),
+        }).eq("id", sd.id);
       } else if (newTxType === "in") {
-        const sRef = doc(collection(db, "stock"));
-        batch.set(sRef, {
-          No: STOCK.length + 1, Item: item, itemKey,
-          TypeDevice: typeDevice || "Other", Stock: qty,
-          Note: "", SN: getTxSerials(),
-          createdAt: serverTimestamp(), createdBy: currentUser?.uid || null,
+        await supabase.from("stock").insert({
+          no: STOCK.length + 1, item, item_key: itemKey,
+          type_device: typeDevice || "Other", stock: qty,
+          note: "", sn: getTxSerials().join(", "),
+          created_at: new Date().toISOString(), created_by: currentUser?.id || null,
         });
       }
 
-      await batch.commit();
-      TX.unshift({ id: txRef.id, ...payload, isNew: true });
+      TX.unshift(mapTxRow({ ...insertedTx, isNew: true }));
       $("cnt-tx").textContent = TX.length;
 
       STOCK = (await loadCollection("stock")).map((s) => ({ ...s, Stock: toNumber(s.Stock, 0), TypeDevice: safeTrim(s.TypeDevice) }));
       $("cnt-stock").textContent = STOCK.length;
       buildAutocompleteSources();
       closeModal();
-      showToast(`✓ Đã thêm: ${item} (${newTxType === "in" ? "+" : "-"}${qty} ${payload.Unit})`, "success");
+      showToast(`✓ Đã thêm: ${item} (${newTxType === "in" ? "+" : "-"}${qty} ${dbPayload.unit})`, "success");
       txFilter = "all";
       txPage = 1;
       showPage("transactions");
@@ -1734,7 +1765,7 @@ async function submitTransaction() {
   }
 }
 
-// ── STOCK MODAL (FIRESTORE) ────────────────────────────────
+// ── STOCK MODAL (SUPABASE) ─────────────────────────────────
 let editingStockId = null;
 
 function openStockModal(stockId) {
@@ -1839,18 +1870,16 @@ async function submitStock() {
     if (editingStockId != null) {
       const s = STOCK.find((x) => String(x.id) === String(editingStockId));
       if (!s) throw new Error("Không tìm thấy item để cập nhật.");
-      const ref = doc(db, "stock", String(editingStockId));
-      const batch = writeBatch(db);
-      batch.update(ref, {
-        Item: item,
-        itemKey,
-        TypeDevice: type,
-        Stock: stock,
-        Note: note,
-        SN: sn,
-        updatedAt: serverTimestamp(),
-      });
-      await batch.commit();
+      const { error } = await supabase.from("stock").update({
+        item,
+        item_key: itemKey,
+        type_device: type,
+        stock,
+        note,
+        sn,
+        updated_at: new Date().toISOString(),
+      }).eq("id", String(editingStockId));
+      if (error) throw error;
 
       s.Item = item;
       s.itemKey = itemKey;
@@ -1860,26 +1889,24 @@ async function submitStock() {
       s.SN = sn;
       showToast(`✓ Đã cập nhật: ${item}`, "success");
     } else {
-      const exists = await getDocs(query(collection(db, "stock"), where("itemKey", "==", itemKey)));
-      if (!exists.empty) {
+      const { data: exists } = await supabase.from("stock").select("id").eq("item_key", itemKey);
+      if (exists && exists.length > 0) {
         showToast(`⚠ "${item}" đã tồn tại trong kho. Hãy chỉnh sửa item đó.`, "error");
         return;
       }
-      const ref = doc(collection(db, "stock"));
-      const batch = writeBatch(db);
-      batch.set(ref, {
-        No: STOCK.length + 1,
-        Item: item,
-        itemKey,
-        TypeDevice: type,
-        Stock: stock,
-        Note: note,
-        SN: sn,
-        createdAt: serverTimestamp(),
-        createdBy: currentUser?.uid || null,
-      });
-      await batch.commit();
-      STOCK.push({ id: ref.id, Item: item, itemKey, TypeDevice: type, Stock: stock, Note: note, SN: sn, isNew: true });
+      const { data: inserted, error } = await supabase.from("stock").insert({
+        no: STOCK.length + 1,
+        item,
+        item_key: itemKey,
+        type_device: type,
+        stock,
+        note,
+        sn,
+        created_at: new Date().toISOString(),
+        created_by: currentUser?.id || null,
+      }).select().single();
+      if (error) throw error;
+      STOCK.push(mapStockRow({ ...inserted, isNew: true }));
       $("cnt-stock").textContent = STOCK.length;
       showToast(`✓ Đã thêm: ${item} (${stock} units)`, "success");
     }
@@ -1902,7 +1929,8 @@ async function deleteStock(id) {
   if (!s) return;
   if (!confirm(`Xoá "${safeTrim(s.Item)}" khỏi tồn kho?`)) return;
   try {
-    await deleteDoc(doc(db, "stock", String(id)));
+    const { error } = await supabase.from("stock").delete().eq("id", String(id));
+    if (error) throw error;
     STOCK = STOCK.filter((x) => String(x.id) !== String(id));
     $("cnt-stock").textContent = STOCK.length;
     buildAutocompleteSources();
@@ -1919,9 +1947,8 @@ async function quickAdjust(id, delta) {
   if (!s) return;
   const newVal = Math.max(0, toNumber(s.Stock, 0) + delta);
   try {
-    const batch = writeBatch(db);
-    batch.update(doc(db, "stock", String(id)), { Stock: newVal, updatedAt: serverTimestamp() });
-    await batch.commit();
+    const { error } = await supabase.from("stock").update({ stock: newVal, updated_at: new Date().toISOString() }).eq("id", String(id));
+    if (error) throw error;
     s.Stock = newVal;
     showToast(`${safeTrim(s.Item)}: ${delta > 0 ? "+1 →" : "-1 →"} ${newVal} units`, "success");
     render();
@@ -2039,7 +2066,7 @@ function _resetIdleTimer() {
   clearTimeout(_idleTimer);
   _idleTimer = setTimeout(async () => {
     showToast("Phiên làm việc hết hạn do không hoạt động.", "info");
-    await signOut(auth);
+    await supabase.auth.signOut();
   }, IDLE_MS);
 }
 
@@ -2062,10 +2089,11 @@ function stopInactivityTimer() {
 wireEvents();
 
 let _prevAuthUser = undefined; // undefined = first call not yet received
-onAuthStateChanged(auth, async (user) => {
+supabase.auth.onAuthStateChange(async (event, session) => {
+  const user = session?.user || null;
   const wasLoggedIn = _prevAuthUser !== undefined && _prevAuthUser !== null;
-  _prevAuthUser = user || null;
-  currentUser = user || null;
+  _prevAuthUser = user;
+  currentUser = user;
   if (user) {
     await loadUserRole(user);
     startInactivityTimer();

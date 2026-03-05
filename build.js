@@ -13,7 +13,7 @@ const SRC_DIR = path.join(__dirname, "js");
 const OUT_DIR = path.join(__dirname, "build", "js");
 
 // Files to process
-const FILES = ["firebase-config.js", "app.js"];
+const FILES = ["supabase-config.js", "app.js"];
 
 // Obfuscator options — balanced between protection and performance
 const obfuscatorOptions = {
