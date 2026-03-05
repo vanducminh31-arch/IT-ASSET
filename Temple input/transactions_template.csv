@@ -1,0 +1,3 @@
+no,item,item_key,description,date,tx_type,quantity,unit,assigned,status,sn,remark,created_at,created_by,updated_at,updated_by,imported_at
+1,Laptop,IT001,Cho mượn,2024-01-10,export,2,pcs,Nguyen Van E,done,"[\"SN001\",\"SN002\"]",Giao cho phòng IT,2024-01-10,,,,
+2,Monitor,IT002,Nhập kho,2024-02-15,import,5,pcs,,pending,"[\"SN003\"]",Nhập mới,2024-02-15,,,,

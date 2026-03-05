@@ -1,0 +1,18 @@
+No,Category,Hardware Type,Model,Qty,S/N
+1,POS,Mini Pc,HP Pro Mini 400 G9,1,8CC51110Q1
+2,POS,Keyboard ,Keyboard ,1,
+3,POS,Mouse ,Mouse ,1,
+4,POS,Cash Drawer,Maken 410,1,MK410221101694
+5,POS,Pole Display ,Pole Display VFD,1,VFD220U13B20120033
+6,POS,Scanning gun,Datalogic QW2100,1,G21E85754
+7,POS,Monitor,Monitor HP V190,1,1CR82307CB
+8,POS,Bill Printer,Epson TM-82III,1,X7B9023460
+9,Network,"Switch (Internal Switch-POS, TF, Wifi)",Cisco CBS110-16T-EU ,1,KWC29190Y1C
+10,Network,Access Point,Wifi UBIQUITI UniFi Swiss Army Knife (UK-Ultra),1,9C05D67658B6
+11,Network,Sim Data (O2O),SIM DATA,1,
+12,Network,Firewall,Fortigate FG-40F - 1  Year UTP license,1,FGT40FTK24086985
+13,Back-end,Printer,Canon LBP 2900,1,NMYA802536
+14,Back-end,Tablet (O2O),Samsung Galaxy Tab S10 FE 5G 8GB 128GB,1,356160460426515
+15,Back-end,Printer (O2O),"Postek IQ200, 203dpi -Bluetooth",1,I1623F0001
+16,PDT,PDT,Zebra TC26BK-11A222-A6,1,S24164523022684
+17,PDT,PDT's Printer ,PDT Printer Star SM-L200-UB40,1,2530022102300950

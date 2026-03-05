@@ -1,23 +1,9 @@
-import { firebaseConfig } from "./firebase-config.js";
+import { supabaseConfig } from "./supabase-config.js";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-import {
-  getAuth,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  signOut,
-} from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
-import {
-  getFirestore,
-  collection,
-  doc,
-  writeBatch,
-  serverTimestamp,
-} from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+const supabase = createClient(supabaseConfig.url, supabaseConfig.anonKey, {
+  auth: { persistSession: true, storage: window.sessionStorage },
+});
 
 const $ = (id) => document.getElementById(id);
 
@@ -48,31 +34,31 @@ function toNumber(n, fallback = 0) {
 function normalizeTx(t) {
   const item = (t.Item ?? "").toString().trim();
   return {
-    No: t.No ?? null,
-    Item: item,
-    itemKey: keyOf(item),
-    Description: (t.Description ?? "").toString(),
-    Date: (t.Date ?? "").toString(),
-    TxType: (t.TxType ?? "").toString(),
-    Quantity: toNumber(t.Quantity, 0),
-    Unit: (t.Unit ?? "").toString(),
-    Assigned: (t.Assigned ?? "").toString(),
-    Status: (t.Status ?? "").toString(),
-    SN: t.SN == null ? "" : String(t.SN),
-    Remark: (t.Remark ?? "").toString(),
+    no: t.No ?? null,
+    item: item,
+    item_key: keyOf(item),
+    description: (t.Description ?? "").toString(),
+    date: (t.Date ?? "").toString(),
+    tx_type: (t.TxType ?? "").toString(),
+    quantity: toNumber(t.Quantity, 0),
+    unit: (t.Unit ?? "").toString(),
+    assigned: (t.Assigned ?? "").toString(),
+    status: (t.Status ?? "").toString(),
+    sn: t.SN == null ? [] : (Array.isArray(t.SN) ? t.SN : String(t.SN).split(/[\n,]+/).map(s => s.trim()).filter(Boolean)),
+    remark: (t.Remark ?? "").toString(),
   };
 }
 
 function normalizeStock(s) {
   const item = (s.Item ?? "").toString().trim();
   return {
-    No: s.No ?? null,
-    Item: item,
-    itemKey: keyOf(item),
-    TypeDevice: (s.TypeDevice ?? "").toString().trim(),
-    Stock: toNumber(s.Stock, 0),
-    Note: (s.Note ?? "").toString(),
-    SN: s.SN == null ? "" : String(s.SN),
+    no: s.No ?? null,
+    item: item,
+    item_key: keyOf(item),
+    type_device: (s.TypeDevice ?? "").toString().trim(),
+    stock: toNumber(s.Stock, 0),
+    note: (s.Note ?? "").toString(),
+    sn: s.SN == null ? "" : String(s.SN),
   };
 }
 
@@ -80,32 +66,47 @@ function normalizeStore(s) {
   const code = (s["Store code"] ?? s.store_code ?? "").toString().trim();
   const name = (s["Store name"] ?? s.store_name ?? "").toString().trim();
   return {
-    ...s,
     store_code: code,
     store_name: name,
-    storeKey: keyOf(code),
+    store_key: keyOf(code),
+    brand: (s.Brand ?? s.brand ?? "").toString().trim(),
+    brand2: (s.Brand2 ?? s.brand2 ?? "").toString().trim(),
+    type: (s.Type ?? s.type ?? "").toString().trim(),
+    type2: (s["Type 2"] ?? s.type2 ?? "").toString().trim(),
+    incharge: (s.Incharge ?? s.incharge ?? "").toString().trim(),
+    position: (s.Position ?? s.position ?? "").toString().trim(),
+    phone: (s.Phone ?? s.phone ?? "").toString().trim(),
+    email: (s.Email ?? s.email ?? "").toString().trim(),
+    am: (s.AM ?? s.am ?? "").toString().trim(),
+    open_date: (s["Open date"] ?? s.open_date ?? "").toString().trim(),
+    total_area: parseFloat(s.TotalArea ?? s.total_area) || 0,
+    sell_area: parseFloat(s.SellArea ?? s.sell_area) || 0,
+    region: (s.Region ?? s.region ?? "").toString().trim(),
+    cost_center: (s["Cost Center"] ?? s.cost_center ?? "").toString().trim(),
+    address: (s.Address ?? s.address ?? "").toString().trim(),
+    o2o: (s.O2O ?? s.o2o ?? "").toString().trim(),
   };
 }
 
 function normalizeMinipc(p) {
   const code = (p["Asset Code"] ?? p.asset_code ?? "").toString().trim();
   return {
-    ...p,
     asset_code: code,
-    assetKey: keyOf(code),
+    asset_key: keyOf(code),
+    data: p,
   };
 }
 
 function normalizeOffice(o) {
   const code = (o.code ?? o["Office code"] ?? "").toString().trim();
   const name = (o.name ?? o["Office name"] ?? "").toString().trim();
-  return { ...o, code, name, key: keyOf(code) };
+  return { code, name, location: (o.location ?? o.Location ?? "").toString().trim(), incharge: (o.incharge ?? o.Incharge ?? "").toString().trim() };
 }
 
 function normalizeWarehouse(w) {
   const code = (w.code ?? w["Warehouse code"] ?? "").toString().trim();
   const name = (w.name ?? w["Warehouse name"] ?? "").toString().trim();
-  return { ...w, code, name, key: keyOf(code) };
+  return { code, name, location: (w.location ?? w.Location ?? "").toString().trim(), incharge: (w.incharge ?? w.Incharge ?? "").toString().trim() };
 }
 
 function validateRaw(raw) {
@@ -128,12 +129,13 @@ function validateRaw(raw) {
 }
 
 async function signInFlow() {
-  const email = prompt("Email đăng nhập Firebase:");
+  const email = prompt("Email đăng nhập Supabase:");
   if (!email) return;
   const pass = prompt("Password:");
   if (!pass) return;
   try {
-    await signInWithEmailAndPassword(auth, email.trim(), pass);
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: pass });
+    if (error) throw error;
     log("✓ Đăng nhập OK");
   } catch (e) {
     log(`✗ Đăng nhập lỗi: ${e?.message || e}`);
@@ -141,7 +143,7 @@ async function signInFlow() {
 }
 
 async function signOutFlow() {
-  await signOut(auth);
+  await supabase.auth.signOut();
   log("Đã đăng xuất");
 }
 
@@ -310,15 +312,12 @@ async function importCollection(colName, rows, normalizer) {
   let done = 0;
   while (done < rows.length) {
     const slice = rows.slice(done, done + CHUNK);
-    const batch = writeBatch(db);
-    slice.forEach((r) => {
-      const ref = doc(collection(db, colName));
-      batch.set(ref, {
-        ...normalizer(r),
-        importedAt: serverTimestamp(),
-      });
-    });
-    await batch.commit();
+    const payload = slice.map((r) => ({
+      ...normalizer(r),
+      imported_at: new Date().toISOString(),
+    }));
+    const { error } = await supabase.from(colName).insert(payload);
+    if (error) throw error;
     done += slice.length;
     log(`  ✓ ${colName}: ${done}/${rows.length}`);
   }
@@ -353,7 +352,7 @@ async function doImport() {
   $("btnImport").disabled = true;
   $("btnDryRun").disabled = true;
   try {
-    log(`Bắt đầu import… uid=${currentUser.uid}`);
+    log(`Bắt đầu import… uid=${currentUser.id}`);
     await importCollection("transactions", tx, normalizeTx);
     await importCollection("stock", stock, normalizeStock);
     await importCollection("stores", stores, normalizeStore);
@@ -378,10 +377,11 @@ $("btnImport").addEventListener("click", doImport);
 $("btnDryRun").addEventListener("click", doDryRun);
 $("btnClearLog").addEventListener("click", () => ($("log").textContent = ""));
 
-onAuthStateChanged(auth, (user) => {
-  currentUser = user || null;
+supabase.auth.onAuthStateChange((event, session) => {
+  const user = session?.user || null;
+  currentUser = user;
   if (currentUser) {
-    setAuthState(`Auth: ${currentUser.email || currentUser.uid}`, true);
+    setAuthState(`Auth: ${currentUser.email || currentUser.id}`, true);
     $("btnSignIn").style.display = "none";
     $("btnSignOut").style.display = "inline-block";
   } else {

@@ -14,51 +14,55 @@
 <pre id="log" style="margin-top:20px;padding:16px;background:#161b22;border-radius:8px;min-height:100px"></pre>
 
 <script type="module">
-import { firebaseConfig } from "./js/firebase-config.js";
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
-import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+import { supabaseConfig } from "./js/supabase-config.js";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+const supabase = createClient(supabaseConfig.url, supabaseConfig.anonKey, {
+  auth: { persistSession: true, storage: window.sessionStorage },
+});
 const log = (msg) => { document.getElementById("log").textContent += msg + "\n"; };
+let currentUser = null;
 
 document.getElementById("btnLogin").onclick = async () => {
   const email = document.getElementById("email").value;
   const pass = document.getElementById("pass").value;
   try {
-    const cred = await signInWithEmailAndPassword(auth, email, pass);
-    log(`✅ Đăng nhập thành công: ${cred.user.email} (UID: ${cred.user.uid})`);
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
+    if (error) throw error;
+    currentUser = data.user;
+    log(`✅ Đăng nhập thành công: ${currentUser.email} (UID: ${currentUser.id})`);
     document.getElementById("btnSeed").disabled = false;
   } catch(e) { log(`❌ Lỗi: ${e.message}`); }
 };
 
-onAuthStateChanged(auth, (user) => {
+supabase.auth.onAuthStateChange((event, session) => {
+  const user = session?.user || null;
+  currentUser = user;
   if (user) {
-    log(`ℹ Đang đăng nhập: ${user.email} (UID: ${user.uid})`);
+    log(`ℹ Đang đăng nhập: ${user.email} (UID: ${user.id})`);
     document.getElementById("btnSeed").disabled = false;
   }
 });
 
 document.getElementById("btnSeed").onclick = async () => {
-  const user = auth.currentUser;
-  if (!user) { log("❌ Chưa đăng nhập!"); return; }
+  if (!currentUser) { log("❌ Chưa đăng nhập!"); return; }
 
   try {
     // Set current user as admin
-    await setDoc(doc(db, "users", user.uid), {
-      email: user.email,
+    const { error } = await supabase.from("users").upsert({
+      id: currentUser.id,
+      email: currentUser.email,
       role: "admin",
-      createdAt: serverTimestamp(),
+      created_at: new Date().toISOString(),
     });
-    log(`✅ Đã tạo: users/${user.uid} → role: admin (${user.email})`);
+    if (error) throw error;
+    log(`✅ Đã tạo: users/${currentUser.id} → role: admin (${currentUser.email})`);
 
     // Verify
-    const snap = await getDoc(doc(db, "users", user.uid));
-    log(`✅ Xác nhận: ${JSON.stringify(snap.data())}`);
-    log(`\n🎉 Hoàn tất! Bây giờ bạn có thể deploy firestore.rules mới.`);
-    log(`UID admin: ${user.uid}`);
+    const { data: verify } = await supabase.from("users").select("*").eq("id", currentUser.id).single();
+    log(`✅ Xác nhận: ${JSON.stringify(verify)}`);
+    log(`\n🎉 Hoàn tất! RLS policies đã được thiết lập trong Supabase.`);
+    log(`UID admin: ${currentUser.id}`);
   } catch(e) {
     log(`❌ Lỗi: ${e.message}`);
   }
