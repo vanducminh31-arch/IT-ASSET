@@ -1,61 +1,37 @@
-﻿import { firebaseConfig } from "./firebase-config.js";
+import { SUPABASE_URL, SUPABASE_ANON } from "./supabase-config.js";
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-import {
-  getAuth,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  signOut,
-  setPersistence,
-  browserSessionPersistence,
-} from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
-import {
-  getFirestore,
-  collection,
-  getDocs,
-  query,
-  where,
-  doc,
-  getDoc,
-  setDoc,
-  writeBatch,
-  serverTimestamp,
-  deleteDoc,
-  updateDoc,
-} from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
-
-// ── FIREBASE INIT ──────────────────────────────────────────
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const authPersistenceReady = setPersistence(auth, browserSessionPersistence).catch((e) => {
-  console.warn("Không thể bật session persistence:", e);
-});
+// ── SUPABASE INIT ──────────────────────────────────────────
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON);
 
 // ── STATE ──────────────────────────────────────────────────
 let currentUser = null;
 let currentRole = null; // 'admin' | 'manager' | 'viewer'
 
 // ── ROLE HELPERS ───────────────────────────────────────────
-function isAdmin() { return currentRole === "admin"; }
+function isAdmin()   { return currentRole === "admin"; }
 function isManager() { return currentRole === "admin" || currentRole === "manager"; }
-function isViewer() { return currentRole === "viewer"; }
+function isViewer()  { return currentRole === "viewer"; }
 
 async function loadUserRole(user) {
   if (!user) { currentRole = null; return; }
   try {
-    const snap = await getDoc(doc(db, "users", user.uid));
-    if (snap.exists()) {
-      currentRole = snap.data().role || "viewer";
-    } else {
-      // First login — auto-create user doc as viewer
-      const newUser = {
+    const { data, error } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (error || !data) {
+      // First login — auto-create user row as viewer
+      await supabase.from("users").insert({
+        id: user.id,
         email: user.email,
         role: "viewer",
-        createdAt: serverTimestamp(),
-      };
-      await setDoc(doc(db, "users", user.uid), newUser);
+      });
       currentRole = "viewer";
+    } else {
+      currentRole = data.role || "viewer";
     }
   } catch (e) {
     console.warn("Cannot load user role:", e);
@@ -137,28 +113,27 @@ function closeAuthModal() {
 }
 
 async function doSignIn() {
-  await authPersistenceReady;
   const email = safeTrim($("authEmailInput").value);
-  const pass = $("authPassInput").value ?? "";
+  const pass  = $("authPassInput").value ?? "";
   if (!email || !pass) {
     showToast("Vui lòng nhập email & password.", "error");
     return;
   }
-  try {
-    await signInWithEmailAndPassword(auth, email, pass);
+  const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
+  if (error) {
+    showToast(`Đăng nhập thất bại: ${error.message}`, "error");
+  } else {
     closeAuthModal();
     showToast("Đăng nhập thành công.", "success");
-  } catch (e) {
-    showToast(`Đăng nhập thất bại: ${e?.message || e}`, "error");
   }
 }
 
 async function doSignOut() {
-  try {
-    await signOut(auth);
+  const { error } = await supabase.auth.signOut();
+  if (error) {
+    showToast(`Đăng xuất thất bại: ${error.message}`, "error");
+  } else {
     showToast("Đã đăng xuất.", "success");
-  } catch (e) {
-    showToast(`Đăng xuất thất bại: ${e?.message || e}`, "error");
   }
 }
 
@@ -167,10 +142,9 @@ function refreshAuthUI() {
   $("authEmail").style.display = currentUser ? "inline" : "none";
   const roleLabel = currentRole === "admin" ? "👑 Admin" : currentRole === "manager" ? "⚙ Manager" : currentRole === "viewer" ? "👁 Viewer" : "";
   $("authEmail").textContent = email + (roleLabel ? ` (${roleLabel})` : "");
-  $("btnOpenAuth").style.display = currentUser ? "none" : "inline-flex";
-  $("btnSignOut").style.display = currentUser ? "inline-flex" : "none";
+  $("btnOpenAuth").style.display  = currentUser ? "none"        : "inline-flex";
+  $("btnSignOut").style.display   = currentUser ? "inline-flex" : "none";
 
-  // Dim restricted nav items for viewer
   const restricted = ["nav-stock", "nav-stores", "nav-offices", "nav-warehouses", "nav-dashboard"];
   restricted.forEach((id) => {
     const el = $(id);
@@ -190,7 +164,6 @@ function navActivate(page) {
 }
 
 function showPage(page) {
-  // Block viewer from restricted pages
   const restricted = ["stock", "stores", "offices", "warehouses", "dashboard"];
   if (isViewer() && restricted.includes(page)) {
     $("main").innerHTML = `
@@ -215,13 +188,14 @@ function onSearch() {
   render();
 }
 
-// ── FIRESTORE LOAD ─────────────────────────────────────────
-async function loadCollection(name) {
+// ── SUPABASE LOAD ──────────────────────────────────────────
+async function loadCollection(table) {
   try {
-    const snap = await getDocs(collection(db, name));
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const { data, error } = await supabase.from(table).select("*");
+    if (error) throw error;
+    return data || [];
   } catch (e) {
-    console.warn(`loadCollection("${name}") failed:`, e?.message || e);
+    console.warn(`loadCollection("${table}") failed:`, e?.message || e);
     return [];
   }
 }
@@ -229,28 +203,27 @@ async function loadCollection(name) {
 async function loadAll() {
   $("main").innerHTML = `<div class="empty"><div class="e-icon">⟳</div>Đang tải dữ liệu...</div>`;
   try {
-    // Viewer: only load transactions
     const canReadAll = isManager() || isAdmin();
     const [tx, stock, pc, stores, offices, warehouses] = await Promise.all([
       loadCollection("transactions"),
-      canReadAll ? loadCollection("stock") : Promise.resolve([]),
-      canReadAll ? loadCollection("minipc") : Promise.resolve([]),
-      canReadAll ? loadCollection("stores") : Promise.resolve([]),
-      canReadAll ? loadCollection("offices") : Promise.resolve([]),
+      canReadAll ? loadCollection("stock")      : Promise.resolve([]),
+      canReadAll ? loadCollection("minipc")     : Promise.resolve([]),
+      canReadAll ? loadCollection("stores")     : Promise.resolve([]),
+      canReadAll ? loadCollection("offices")    : Promise.resolve([]),
       canReadAll ? loadCollection("warehouses") : Promise.resolve([]),
     ]);
 
-    TX = (tx || []).map((t) => ({ ...t, Quantity: toNumber(t.Quantity, 0) }));
-    STOCK = (stock || []).map((s) => ({ ...s, Stock: toNumber(s.Stock, 0), TypeDevice: safeTrim(s.TypeDevice) }));
-    PC = pc || [];
-    STORES = stores || [];
-    OFFICES = offices || [];
+    TX         = (tx     || []).map((t) => ({ ...t, Quantity: toNumber(t.Quantity, 0) }));
+    STOCK      = (stock  || []).map((s) => ({ ...s, Stock: toNumber(s.Stock, 0), TypeDevice: safeTrim(s.TypeDevice) }));
+    PC         = pc       || [];
+    STORES     = stores   || [];
+    OFFICES    = offices  || [];
     WAREHOUSES = warehouses || [];
 
-    $("cnt-tx").textContent = TX.length;
-    $("cnt-stock").textContent = STOCK.length;
-    $("cnt-stores").textContent = STORES.length;
-    $("cnt-offices").textContent = OFFICES.length;
+    $("cnt-tx").textContent         = TX.length;
+    $("cnt-stock").textContent      = STOCK.length;
+    $("cnt-stores").textContent     = STORES.length;
+    $("cnt-offices").textContent    = OFFICES.length;
     $("cnt-warehouses").textContent = WAREHOUSES.length;
 
     buildAutocompleteSources();
@@ -271,18 +244,16 @@ function hl(text, q) {
 function statusBadge(st) {
   const s = (st || "").toLowerCase().trim();
   if (s.includes("still use") || s.includes("new") || s === "active") return `<span class="badge-status s-active">Still use</span>`;
-  if (s.includes("broken")) return `<span class="badge-status s-broken">${st}</span>`;
-  if (s.includes("old")) return `<span class="badge-status s-old">${st}</span>`;
+  if (s.includes("broken"))     return `<span class="badge-status s-broken">${st}</span>`;
+  if (s.includes("old"))        return `<span class="badge-status s-old">${st}</span>`;
   if (s.includes("none") || s.includes("liquidation")) return `<span class="badge-status s-none">${st}</span>`;
   return st ? `<span class="badge-status s-old">${st}</span>` : '<span style="color:var(--dim)">—</span>';
 }
 
-// Clean serial: remove trailing annotation labels like (Scan), (Door: scan), etc.
 function cleanSN(s) {
   return safeTrim(s).replace(/\s*\([^)]*\)\s*/g, "").trim();
 }
 
-// Normalize date display → DD/MM/YYYY
 function fmtDate(d) {
   const s = safeTrim(d);
   const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -292,26 +263,24 @@ function fmtDate(d) {
 
 function render() {
   const pages = {
-    dashboard: renderDashboard,
+    dashboard:    renderDashboard,
     transactions: renderTransactions,
-    stock: renderStock,
-    stores: renderStores,
-    offices: renderOffices,
-    warehouses: renderWarehouses,
+    stock:        renderStock,
+    stores:       renderStores,
+    offices:      renderOffices,
+    warehouses:   renderWarehouses,
   };
   (pages[currentPage] || renderDashboard)();
 }
 
 // ── DASHBOARD ──────────────────────────────────────────────
 function renderDashboard() {
-  const totalIn = TX.filter((t) => t.TxType === "in").reduce((s, t) => s + toNumber(t.Quantity, 0), 0);
-  const totalOut = TX.filter((t) => t.TxType === "out").reduce((s, t) => s + toNumber(t.Quantity, 0), 0);
+  const totalIn    = TX.filter((t) => t.TxType === "in").reduce((s, t) => s + toNumber(t.Quantity, 0), 0);
+  const totalOut   = TX.filter((t) => t.TxType === "out").reduce((s, t) => s + toNumber(t.Quantity, 0), 0);
   const totalStock = STOCK.reduce((s, t) => s + toNumber(t.Stock, 0), 0);
   const brokenItems = TX.filter((t) => (t.Status || "").toLowerCase().includes("broken")).length;
 
-  const recent = [...TX]
-    .sort((a, b) => (safeTrim(b.Date)).localeCompare(safeTrim(a.Date)))
-    .slice(0, 8);
+  const recent  = [...TX].sort((a, b) => (safeTrim(b.Date)).localeCompare(safeTrim(a.Date))).slice(0, 8);
   const topStock = [...STOCK].sort((a, b) => toNumber(b.Stock, 0) - toNumber(a.Stock, 0)).slice(0, 5);
 
   const catMap = {};
@@ -319,7 +288,7 @@ function renderDashboard() {
     const k = safeTrim(s.TypeDevice) || "Other";
     catMap[k] = (catMap[k] || 0) + toNumber(s.Stock, 0);
   });
-  const cats = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const cats   = Object.entries(catMap).sort((a, b) => b[1] - a[1]).slice(0, 8);
   const maxCat = cats[0]?.[1] || 1;
 
   $("main").innerHTML = `
@@ -408,33 +377,35 @@ function renderDashboard() {
 }
 
 // ── TRANSACTIONS ───────────────────────────────────────────
+let _txGroupedData = [];
+let expandedTxGroups = new Set();
+
 function renderTransactions() {
   const q = getSearch();
-  const list = TX
-    .filter((t) => {
-      if (txFilter === "in" && t.TxType !== "in") return false;
-      if (txFilter === "out" && t.TxType !== "out") return false;
-      if (txFilter === "broken" && !(safeTrim(t.Status)).toLowerCase().includes("broken")) return false;
-      if (q) {
-        const hay = [t.Item, t.Assigned, t.Status, t.SN, t.Description, t.Remark].join(" ").toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    })
-    .sort((a, b) => (safeTrim(b.Date)).localeCompare(safeTrim(a.Date)));
+  let list = TX.filter((t) => {
+    if (txFilter === "in"     && t.TxType !== "in")  return false;
+    if (txFilter === "out"    && t.TxType !== "out") return false;
+    if (txFilter === "broken" && !(t.Status || "").toLowerCase().includes("broken")) return false;
+    if (q) {
+      const hay = [t.Item, t.Description, t.Assigned, t.SN, t.Status].join(" ").toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
 
-  // Group: same item + TxType + assigned → one merged row
   const _grpMap = {};
   list.forEach((t) => {
-    const key = [keyOf(safeTrim(t.Item)), t.TxType, keyOf(safeTrim(t.Assigned))].join("|");
-    if (!_grpMap[key]) _grpMap[key] = { key, item: safeTrim(t.Item), txType: t.TxType, assigned: safeTrim(t.Assigned), qty: 0, sns: [], rawTxs: [], statuses: new Set(), lastDate: "", firstDate: "9999-99-99", desc: safeTrim(t.Description) || "" };
+    const key = `${keyOf(t.Item)}|${t.TxType}`;
+    if (!_grpMap[key]) {
+      _grpMap[key] = { key, item: safeTrim(t.Item), txType: t.TxType, qty: 0, rawTxs: [], sns: [], statuses: new Set(), assigned: safeTrim(t.Assigned), lastDate: "", firstDate: "9999-99-99", desc: "" };
+    }
     _grpMap[key].qty += toNumber(t.Quantity, 0);
     _grpMap[key].rawTxs.push(t);
+    const _sn = t.SN;
+    if (Array.isArray(_sn)) _sn.forEach((s) => { const v = cleanSN(s); if (v) _grpMap[key].sns.push(v); });
+    else safeTrim(_sn).split(/[\n,]+/).forEach((s) => { const v = cleanSN(s); if (v) _grpMap[key].sns.push(v); });
     if (safeTrim(t.Status)) _grpMap[key].statuses.add(safeTrim(t.Status));
-    const _snv = t.SN;
-    if (Array.isArray(_snv)) _snv.forEach((s) => { const v = cleanSN(s); if (v) _grpMap[key].sns.push(v); });
-    else safeTrim(_snv).split(/[\n,]+/).forEach((s) => { const sv = cleanSN(s); if (sv) _grpMap[key].sns.push(sv); });
-    if (safeTrim(t.Date) > _grpMap[key].lastDate) _grpMap[key].lastDate = safeTrim(t.Date);
+    if (safeTrim(t.Date) > _grpMap[key].lastDate)  _grpMap[key].lastDate  = safeTrim(t.Date);
     if (safeTrim(t.Date) && safeTrim(t.Date) < _grpMap[key].firstDate) _grpMap[key].firstDate = safeTrim(t.Date);
     if (!_grpMap[key].desc && safeTrim(t.Description)) _grpMap[key].desc = safeTrim(t.Description);
   });
@@ -454,9 +425,9 @@ function renderTransactions() {
     </div>
 
     <div class="filters">
-      <button class="filter-btn ${txFilter === "all" ? "active" : ""}" onclick="setTxFilter('all')">Tất cả (${TX.length})</button>
-      <button class="filter-btn ${txFilter === "in" ? "active" : ""}" onclick="setTxFilter('in')">↑ Nhập (${TX.filter((t) => t.TxType === "in").length})</button>
-      <button class="filter-btn ${txFilter === "out" ? "active" : ""}" onclick="setTxFilter('out')">↓ Xuất (${TX.filter((t) => t.TxType === "out").length})</button>
+      <button class="filter-btn ${txFilter === "all"    ? "active" : ""}" onclick="setTxFilter('all')">Tất cả (${TX.length})</button>
+      <button class="filter-btn ${txFilter === "in"     ? "active" : ""}" onclick="setTxFilter('in')">↑ Nhập (${TX.filter((t) => t.TxType === "in").length})</button>
+      <button class="filter-btn ${txFilter === "out"    ? "active" : ""}" onclick="setTxFilter('out')">↓ Xuất (${TX.filter((t) => t.TxType === "out").length})</button>
       <button class="filter-btn ${txFilter === "broken" ? "active" : ""}" onclick="setTxFilter('broken')">⚠ Hỏng</button>
       <div class="filter-right">
         <span style="font-size:12px;color:var(--muted)">Hiển thị ${paged.length}/${total}</span>
@@ -469,28 +440,20 @@ function renderTransactions() {
         <table>
           <thead>
             <tr>
-              <th>Thiết bị</th>
-              <th>Loại</th>
-              <th>SL</th>
-              <th>Giao cho</th>
-              <th>Trạng thái</th>
-              <th>Serial / S/N</th>
-              <th>Ngày</th>
-              <th></th>
+              <th>Thiết bị</th><th>Loại</th><th>SL</th><th>Giao cho</th><th>Trạng thái</th><th>Serial / S/N</th><th>Ngày</th><th></th>
             </tr>
           </thead>
           <tbody>
             ${paged.length ? paged.map((d) => {
               const _isSingle = d.rawTxs.length === 1;
-              const _isExp = expandedTxGroups.has(d.key);
               const _dateDisplay = _isSingle
                 ? fmtDate(d.lastDate) || "—"
                 : (d.firstDate !== "9999-99-99" && d.firstDate !== d.lastDate
                     ? `${fmtDate(d.firstDate)} → ${fmtDate(d.lastDate)}`
                     : fmtDate(d.lastDate) || "—");
-              const _statusArr = [...(d.statuses || [])];
+              const _statusArr    = [...(d.statuses || [])];
               const _statusDisplay = _statusArr.length ? _statusArr.map(s => statusBadge(s)).join(" ") : statusBadge("");
-              const _grpRow = `
+              return `
                 <tr${!_isSingle ? ` style="background:rgba(88,166,255,.03)"` : ""}>
                   <td>
                     <div style="font-weight:500">${hl(d.item, q)}</div>
@@ -512,7 +475,6 @@ function renderTransactions() {
                     }
                   </td>
                 </tr>`;
-              return _grpRow;
             }).join("")
             : `<tr><td colspan="8"><div class="empty"><div class="e-icon">○</div>Không tìm thấy kết quả</div></td></tr>`}
           </tbody>
@@ -534,39 +496,16 @@ function renderTransactions() {
     </div>
   `;
 }
-function setTxFilter(f) {
-  txFilter = f;
-  txPage = 1;
-  render();
-}
-function goPage(p) {
-  txPage = p;
-  render();
-}
 
-// Expose for onclick in templates
+function setTxFilter(f) { txFilter = f; txPage = 1; render(); }
+function goPage(p)       { txPage = p; render(); }
+
 window.setTxFilter = setTxFilter;
-window.goPage = goPage;
-
-function setStockTypeFilter(v) {
-  stockTypeFilter = v;
-  render();
-}
-function setStoresRegionFilter(v) {
-  storesRegionFilter = v;
-  render();
-}
-function setStoresBrandFilter(v) {
-  storesBrandFilter = v;
-  render();
-}
-window.setStockTypeFilter = setStockTypeFilter;
-window.setStoresRegionFilter = setStoresRegionFilter;
-window.setStoresBrandFilter = setStoresBrandFilter;
+window.goPage      = goPage;
 
 // ── STOCK ──────────────────────────────────────────────────
 function renderStock() {
-  const q = getSearch();
+  const q     = getSearch();
   const types = ["all", ...new Set(STOCK.map((s) => safeTrim(s.TypeDevice)).filter(Boolean).sort())];
 
   let list = STOCK.filter((s) => {
@@ -615,10 +554,10 @@ function renderStock() {
             <div class="sc-unit">units</div>
           </div>
           ${s.Note ? `<div style="margin-top:8px;font-size:11px;color:var(--dim);line-height:1.3">${safeTrim(s.Note)}</div>` : ""}
-          ${s.SN ? `<div style="margin-top:4px;font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--dim);line-height:1.7">${safeTrim(s.SN).split(/[\n,]+/).filter(Boolean).map((v) => `<div>${v.trim()}</div>`).join("")}</div>` : ""}
+          ${s.SN   ? `<div style="margin-top:4px;font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--dim);line-height:1.7">${safeTrim(s.SN).split(/[\n,]+/).filter(Boolean).map((v) => `<div>${v.trim()}</div>`).join("")}</div>` : ""}
           <div style="display:flex;gap:4px;margin-top:10px">
             <button onclick="quickAdjust('${String(s.id).replace(/'/g, "\\'")}',-1)" style="flex:1;padding:4px;background:rgba(248,81,73,.08);border:1px solid rgba(248,81,73,.2);border-radius:4px;color:var(--out);cursor:pointer;font-size:14px;font-weight:700;transition:all .15s" onmouseover="this.style.background='rgba(248,81,73,.18)'" onmouseout="this.style.background='rgba(248,81,73,.08)'">−</button>
-            <button onclick="quickAdjust('${String(s.id).replace(/'/g, "\\'")}',1)" style="flex:1;padding:4px;background:rgba(63,185,80,.08);border:1px solid rgba(63,185,80,.2);border-radius:4px;color:var(--in);cursor:pointer;font-size:14px;font-weight:700;transition:all .15s" onmouseover="this.style.background='rgba(63,185,80,.18)'" onmouseout="this.style.background='rgba(63,185,80,.08)'">＋</button>
+            <button onclick="quickAdjust('${String(s.id).replace(/'/g, "\\'")}',1)"  style="flex:1;padding:4px;background:rgba(63,185,80,.08);border:1px solid rgba(63,185,80,.2);border-radius:4px;color:var(--in);cursor:pointer;font-size:14px;font-weight:700;transition:all .15s" onmouseover="this.style.background='rgba(63,185,80,.18)'"  onmouseout="this.style.background='rgba(63,185,80,.08)'">＋</button>
           </div>
         </div>
       `).join("")
@@ -627,19 +566,25 @@ function renderStock() {
   `;
 }
 
+function setStockTypeFilter(v)   { stockTypeFilter   = v; render(); }
+function setStoresRegionFilter(v){ storesRegionFilter = v; render(); }
+function setStoresBrandFilter(v) { storesBrandFilter  = v; render(); }
+window.setStockTypeFilter    = setStockTypeFilter;
+window.setStoresRegionFilter = setStoresRegionFilter;
+window.setStoresBrandFilter  = setStoresBrandFilter;
 window.openStockModal = openStockModal;
-window.deleteStock = deleteStock;
-window.quickAdjust = quickAdjust;
+window.deleteStock    = deleteStock;
+window.quickAdjust    = quickAdjust;
 
 // ── STORES ────────────────────────────────────────────────
 function renderStores() {
-  const q = getSearch();
+  const q      = getSearch();
   const brands = ["all", ...new Set(STORES.map((s) => safeTrim(s.Brand)).filter(Boolean).sort())];
   const vnCount = STORES.filter((s) => s.Region === "VN").length;
   const cbCount = STORES.filter((s) => s.Region === "CB").length;
 
   let list = STORES.filter((s) => {
-    if (storesBrandFilter !== "all" && safeTrim(s.Brand) !== storesBrandFilter) return false;
+    if (storesBrandFilter !== "all" && safeTrim(s.Brand) !== storesBrandFilter)   return false;
     if (storesRegionFilter !== "all" && safeTrim(s.Region) !== storesRegionFilter) return false;
     if (q) {
       const hay = Object.values(s).join(" ").toLowerCase();
@@ -656,60 +601,45 @@ function renderStores() {
 
     <div class="filters" style="margin-bottom:10px">
       <button class="filter-btn ${storesRegionFilter === "all" ? "active" : ""}" onclick="setStoresRegionFilter('all')">Tất cả (${STORES.length})</button>
-      <button class="filter-btn ${storesRegionFilter === "VN" ? "active" : ""}" onclick="setStoresRegionFilter('VN')">VN (${vnCount})</button>
-      <button class="filter-btn ${storesRegionFilter === "CB" ? "active" : ""}" onclick="setStoresRegionFilter('CB')">Cambodia (${cbCount})</button>
+      <button class="filter-btn ${storesRegionFilter === "VN"  ? "active" : ""}" onclick="setStoresRegionFilter('VN')">VN (${vnCount})</button>
+      <button class="filter-btn ${storesRegionFilter === "CB"  ? "active" : ""}" onclick="setStoresRegionFilter('CB')">Cambodia (${cbCount})</button>
     </div>
 
     <div class="brand-pills">
-      ${brands
-        .map((b) => `<div class="brand-pill ${storesBrandFilter === b ? "active" : ""}" onclick="setStoresBrandFilter('${b.replace(/'/g, "\\'")}')">${b === "all" ? "Tất cả brands" : b}</div>`)
-        .join("")}
+      ${brands.map((b) => `<div class="brand-pill ${storesBrandFilter === b ? "active" : ""}" onclick="setStoresBrandFilter('${b.replace(/'/g, "\\'")}')">${b === "all" ? "Tất cả brands" : b}</div>`).join("")}
     </div>
 
     <div class="store-grid">
       ${list.length
-        ? list
-            .map((s) => {
-              const code = safeTrim(s["Store code"] || s.store_code);
-              const name = safeTrim(s["Store name"] || s.store_name);
-              const brand = safeTrim(s.Brand || s.brand);
-              const devItems = [
-                ...new Set(
-                  TX.filter((t) => matchAssigned(t.Assigned, code, name) && t.TxType === "out").map((t) => safeTrim(t.Item))
-                ),
-              ].filter(Boolean);
-              return `
-                <div class="store-card store-card-clickable" onclick="renderStoreDetail('${code.replace(/'/g, "\\'")}')">
-                  <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-                    <div class="sc-code">${hl(code, q)}</div>
-                    <span style="font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid ${safeTrim(s.O2O || s.o2o) ? 'rgba(63,185,80,.3);background:rgba(63,185,80,.1);color:var(--in)' : 'var(--border);background:var(--surface2);color:var(--dim)'}">O2O</span>
-                    ${safeTrim(s.Type || s.type) ? `<span style="font-size:10px;color:var(--dim)">${safeTrim(s.Type || s.type)}</span>` : ""}
-                    <span style="margin-left:auto;font-size:11px;color:var(--accent);font-family:'IBM Plex Mono',monospace">${devItems.length} loại TB</span>
-                  </div>
-                  <div class="sc-name">${hl(name, q)}</div>
-                  <div class="sc-brand">${brand}</div>
-                  <div class="sr"><span class="k">Incharge</span><span class="v">${hl(safeTrim(s.Incharge || s.incharge), q) || "—"}</span></div>
-                  <div class="sr"><span class="k">Chức vụ</span><span class="v" style="color:var(--muted)">${safeTrim(s.Position || s.position) || "—"}</span></div>
-                  ${safeTrim(s.Phone || s.phone)
-                    ? `<div class="sr"><span class="k">Phone</span><span class="v"><a href="tel:${safeTrim(
-                        s.Phone || s.phone
-                      )}" style="color:var(--accent);text-decoration:none" onclick="event.stopPropagation()">${safeTrim(
-                        s.Phone || s.phone
-                      )}</a></span></div>`
-                    : ""}
-                  <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
-                    <div style="font-size:10px;color:var(--dim);margin-bottom:5px;text-transform:uppercase;letter-spacing:.8px">Thiết bị đang có</div>
-                    <div style="display:flex;flex-wrap:wrap;gap:4px">
-                      ${devItems.slice(0, 4).map((i) => `<span style="font-size:10px;padding:2px 6px;background:var(--surface2);border-radius:3px;color:var(--muted)">${i}</span>`).join("")}
-                      ${devItems.length > 4 ? `<span style="font-size:10px;padding:2px 6px;background:var(--surface2);border-radius:3px;color:var(--accent)">+${devItems.length - 4} khác</span>` : ""}
-                      ${devItems.length === 0 ? `<span style="font-size:10px;color:var(--dim)">Chưa có thiết bị</span>` : ""}
-                    </div>
-                  </div>
-                  <div style="margin-top:8px;text-align:right;font-size:11px;color:var(--dim)">Bấm để xem chi tiết →</div>
+        ? list.map((s) => {
+            const code = safeTrim(s["Store code"] || s.store_code);
+            const name = safeTrim(s["Store name"] || s.store_name);
+            const brand = safeTrim(s.Brand || s.brand);
+            const devItems = [...new Set(TX.filter((t) => matchAssigned(t.Assigned, code, name) && t.TxType === "out").map((t) => safeTrim(t.Item)))].filter(Boolean);
+            return `
+              <div class="store-card store-card-clickable" onclick="renderStoreDetail('${code.replace(/'/g, "\\'")}')">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+                  <div class="sc-code">${hl(code, q)}</div>
+                  <span style="font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid ${safeTrim(s.O2O || s.o2o) ? 'rgba(63,185,80,.3);background:rgba(63,185,80,.1);color:var(--in)' : 'var(--border);background:var(--surface2);color:var(--dim)'}">O2O</span>
+                  ${safeTrim(s.Type || s.type) ? `<span style="font-size:10px;color:var(--dim)">${safeTrim(s.Type || s.type)}</span>` : ""}
+                  <span style="margin-left:auto;font-size:11px;color:var(--accent);font-family:'IBM Plex Mono',monospace">${devItems.length} loại TB</span>
                 </div>
-              `;
-            })
-            .join("")
+                <div class="sc-name">${hl(name, q)}</div>
+                <div class="sc-brand">${brand}</div>
+                <div class="sr"><span class="k">Incharge</span><span class="v">${hl(safeTrim(s.Incharge || s.incharge), q) || "—"}</span></div>
+                <div class="sr"><span class="k">Chức vụ</span><span class="v" style="color:var(--muted)">${safeTrim(s.Position || s.position) || "—"}</span></div>
+                ${safeTrim(s.Phone || s.phone) ? `<div class="sr"><span class="k">Phone</span><span class="v"><a href="tel:${safeTrim(s.Phone || s.phone)}" style="color:var(--accent);text-decoration:none" onclick="event.stopPropagation()">${safeTrim(s.Phone || s.phone)}</a></span></div>` : ""}
+                <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+                  <div style="font-size:10px;color:var(--dim);margin-bottom:5px;text-transform:uppercase;letter-spacing:.8px">Thiết bị đang có</div>
+                  <div style="display:flex;flex-wrap:wrap;gap:4px">
+                    ${devItems.slice(0, 4).map((i) => `<span style="font-size:10px;padding:2px 6px;background:var(--surface2);border-radius:3px;color:var(--muted)">${i}</span>`).join("")}
+                    ${devItems.length > 4 ? `<span style="font-size:10px;padding:2px 6px;background:var(--surface2);border-radius:3px;color:var(--accent)">+${devItems.length - 4} khác</span>` : ""}
+                    ${devItems.length === 0 ? `<span style="font-size:10px;color:var(--dim)">Chưa có thiết bị</span>` : ""}
+                  </div>
+                </div>
+                <div style="margin-top:8px;text-align:right;font-size:11px;color:var(--dim)">Bấm để xem chi tiết →</div>
+              </div>`;
+          }).join("")
         : `<div class="empty" style="grid-column:1/-1"><div class="e-icon">○</div>Không có kết quả</div>`}
     </div>
   `;
@@ -718,143 +648,62 @@ function renderStores() {
 function renderStoreDetail(storeCode) {
   const store = STORES.find((s) => safeTrim(s["Store code"] || s.store_code) === storeCode);
   if (!store) return;
-
   const storeName = safeTrim(store["Store name"] || store.store_name);
-  const storeTx = TX.filter((t) => matchAssigned(t.Assigned, storeCode, storeName));
-  const outTx = storeTx.filter((t) => t.TxType === "out");
-  const inTx = storeTx.filter((t) => t.TxType === "in");
+  const storeTx   = TX.filter((t) => matchAssigned(t.Assigned, storeCode, storeName));
+  const outTx     = storeTx.filter((t) => t.TxType === "out");
 
   const deviceMap = {};
   outTx.forEach((t) => {
     const key = safeTrim(t.Item);
     if (!key) return;
-    if (!deviceMap[key]) deviceMap[key] = { item: key, qty: 0, sn: new Set(), assigned: new Set(), lastDate: "" };
+    if (!deviceMap[key]) deviceMap[key] = { item: key, qty: 0, sn: new Set(), lastDate: "" };
     deviceMap[key].qty += toNumber(t.Quantity, 0);
     const _sn = t.SN;
-    if (Array.isArray(_sn)) {
-      _sn.forEach((s) => { const v = cleanSN(s); if (v) deviceMap[key].sn.add(v); });
-    } else {
-      safeTrim(_sn).split(/[\n,]+/).forEach((s) => { const sv = cleanSN(s); if (sv) deviceMap[key].sn.add(sv); });
-    }
-    if (safeTrim(t.Assigned)) deviceMap[key].assigned.add(safeTrim(t.Assigned));
+    if (Array.isArray(_sn)) _sn.forEach((s) => { const v = cleanSN(s); if (v) deviceMap[key].sn.add(v); });
+    else safeTrim(_sn).split(/[\n,]+/).forEach((s) => { const sv = cleanSN(s); if (sv) deviceMap[key].sn.add(sv); });
     if (safeTrim(t.Date) > deviceMap[key].lastDate) deviceMap[key].lastDate = safeTrim(t.Date);
   });
-  inTx.forEach((t) => {
-    const key = safeTrim(t.Item);
-    if (deviceMap[key]) deviceMap[key].qty = Math.max(0, deviceMap[key].qty - toNumber(t.Quantity, 0));
-  });
 
-  const devices = Object.values(deviceMap).sort((a, b) => b.qty - a.qty);
-  const totalDevices = devices.reduce((s, d) => s + d.qty, 0);
-
-  const code = storeCode;
-  const name = safeTrim(store["Store name"] || store.store_name);
-  const brand = safeTrim(store.Brand || store.brand);
+  const devices = Object.values(deviceMap).sort((a, b) => a.item.localeCompare(b.item));
 
   $("main").innerHTML = `
-    <div style="margin-bottom:20px">
-      <button onclick="showPage('stores')" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:0;display:flex;align-items:center;gap:6px;margin-bottom:16px;transition:color .15s" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">
-        ← Quay lại danh sách cửa hàng
-      </button>
-
-      <div style="display:grid;grid-template-columns:1fr auto;gap:16px;align-items:start">
-        <div>
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
-            <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--accent);background:rgba(88,166,255,.1);padding:3px 10px;border-radius:4px">${code}</span>
-            <button onclick="toggleO2O('${code}')" title="Bấm để bật/tắt O2O" style="font-size:11px;padding:2px 10px;border-radius:4px;cursor:pointer;font-weight:600;letter-spacing:.5px;transition:all .15s;border:1px solid ${safeTrim(store.O2O || store.o2o) ? 'rgba(63,185,80,.4);background:rgba(63,185,80,.15);color:var(--in)' : 'var(--border);background:var(--surface2);color:var(--dim)'}">O2O</button>
-            <button onclick="openStoreModal('${store.id}')" title="Chỉnh sửa thông tin cửa hàng" style="font-size:12px;padding:2px 10px;border-radius:4px;cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--muted);transition:all .15s" onmouseover="this.style.color='var(--text)';this.style.borderColor='var(--accent)'" onmouseout="this.style.color='var(--muted)';this.style.borderColor='var(--border)'">✎ Sửa</button>
-            <span style="font-size:11px;color:var(--warn);text-transform:uppercase;letter-spacing:.5px">${brand}</span>
-          </div>
-          <div style="font-size:22px;font-weight:700;margin-bottom:4px">${name}</div>
-          <div style="font-size:13px;color:var(--muted)">${safeTrim(store.Type || store.type) || ""} ${safeTrim(store["Type 2"] || store.type2) ? "· " + safeTrim(store["Type 2"] || store.type2) : ""}</div>
-        </div>
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;text-align:center;min-width:120px">
-          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">Thiết bị</div>
-          <div style="font-size:32px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:var(--accent)">${totalDevices}</div>
-          <div style="font-size:11px;color:var(--dim)">${devices.length} loại</div>
-        </div>
+    <div class="page-header" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <button class="btn-secondary" onclick="showPage('stores')">← Quay lại</button>
+      <div>
+        <div class="page-title">🏪 ${storeName}</div>
+        <div class="page-sub">${storeCode} · ${safeTrim(store.Brand || "")} · ${safeTrim(store.Region || "")}</div>
       </div>
+      <button class="btn-secondary" style="margin-left:auto" onclick="openStoreModal('${String(store.id).replace(/'/g, "\\'")}')">✎ Chỉnh sửa</button>
+      <button onclick="toggleO2O('${storeCode.replace(/'/g, "\\'")}')" style="padding:6px 14px;border-radius:6px;border:1px solid ${safeTrim(store.O2O||store.o2o)?'rgba(63,185,80,.4)':'var(--border)'};background:${safeTrim(store.O2O||store.o2o)?'rgba(63,185,80,.12)':'transparent'};color:${safeTrim(store.O2O||store.o2o)?'var(--in)':'var(--muted)'};cursor:pointer;font-size:12px;font-weight:600;transition:all .2s">O2O ${safeTrim(store.O2O||store.o2o)?'✓ ON':'OFF'}</button>
     </div>
-
-    <div style="display:flex;gap:24px;flex-wrap:wrap;padding:14px 18px;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:20px;font-size:13px">
-      ${safeTrim(store.Incharge || store.incharge) ? `<div><span style="color:var(--dim);margin-right:6px">Incharge</span><span style="font-weight:500">${safeTrim(store.Incharge || store.incharge)}</span> <span style="color:var(--muted);font-size:11px">(${safeTrim(store.Position || store.position) || ""})</span></div>` : ""}
-      ${safeTrim(store.Phone || store.phone) ? `<div><span style="color:var(--dim);margin-right:6px">Phone</span><a href="tel:${safeTrim(store.Phone || store.phone)}" style="color:var(--accent);text-decoration:none">${safeTrim(store.Phone || store.phone)}</a></div>` : ""}
-      ${safeTrim(store.AM || store.am) ? `<div><span style="color:var(--dim);margin-right:6px">AM</span><span>${safeTrim(store.AM || store.am)}</span></div>` : ""}
-      ${safeTrim(store["Open date"] || store.open_date) ? `<div><span style="color:var(--dim);margin-right:6px">Mở cửa</span><span style="font-family:'IBM Plex Mono',monospace;font-size:12px">${safeTrim(store["Open date"] || store.open_date)}</span></div>` : ""}
-      ${safeTrim(store.TotalArea || store.total_area) ? `<div><span style="color:var(--dim);margin-right:6px">Diện tích</span><span>${safeTrim(store.TotalArea || store.total_area)} m²</span></div>` : ""}
-      ${safeTrim(store.Address || store.address) ? `<div style="flex-basis:100%;color:var(--dim);font-size:12px">📍 ${safeTrim(store.Address || store.address)}</div>` : ""}
-    </div>
-
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-      <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.8px">Thiết bị tại cửa hàng</div>
-      <span style="font-size:12px;color:var(--dim)">${storeTx.length} giao dịch liên quan</span>
-    </div>
-
-    ${devices.length ? `
-      <div class="table-wrap" style="margin-bottom:20px">
-        <div class="table-scroll">
-          <table>
-            <thead>
+    <div class="table-wrap" style="margin-bottom:16px">
+      <div class="table-scroll" style="max-height:520px">
+        <table>
+          <thead><tr><th>Thiết bị</th><th>SL</th><th>Serial (${devices.reduce((s,d)=>s+d.sn.size,0)})</th><th>Ngày</th></tr></thead>
+          <tbody>
+            ${devices.length ? devices.map((d) => `
               <tr>
-                <th>Thiết bị</th>
-                <th>Số lượng</th>
-                <th>Vị trí / Sub</th>
-                <th>Serial / S/N</th>
-                <th>Ngày gần nhất</th>
+                <td style="font-weight:500">${d.item}</td>
+                <td class="mono" style="font-weight:600;font-size:15px;color:var(--accent)">${d.qty}</td>
+                <td class="mono" style="font-size:11px;color:var(--dim)">${[...d.sn].map((s) => `<div style="white-space:nowrap">${s}</div>`).join("") || "—"}</td>
+                <td class="mono" style="font-size:11px;color:var(--muted)">${fmtDate(d.lastDate) || "—"}</td>
               </tr>
-            </thead>
-            <tbody>
-              ${devices.map((d) => `
-                <tr>
-                  <td style="font-weight:500">${d.item}</td>
-                  <td><span style="font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:700;color:var(--accent)">${d.qty}</span></td>
-                  <td style="font-size:11px;color:var(--muted)">${[...d.assigned].map((a) => `<span style="background:var(--surface2);padding:1px 6px;border-radius:3px;margin-right:3px">${a}</span>`).join("")}</td>
-                  <td style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--dim)">
-                    ${d.sn.size ? [...d.sn].map((s) => `<div style="white-space:nowrap">${s}</div>`).join("") : "—"}
-                  </td>
-                  <td style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted)">${fmtDate(d.lastDate) || "—"}</td>
-                </tr>
-              `).join("")}
-            </tbody>
-          </table>
-        </div>
+            `).join("") : `<tr><td colspan="4"><div class="empty"><div class="e-icon">○</div>Chưa có thiết bị</div></td></tr>`}
+          </tbody>
+        </table>
       </div>
-    ` : `<div class="empty"><div class="e-icon">📦</div><div>Chưa có thiết bị nào được ghi nhận cho cửa hàng này</div></div>`}
-
-    ${storeTx.length ? `
-      <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px">Lịch sử giao dịch</div>
-      <div class="table-wrap">
-        <div class="table-scroll" style="max-height:300px">
-          <table>
-            <thead><tr><th>Thiết bị</th><th>Loại</th><th>SL</th><th>Assigned</th><th>Trạng thái</th><th>Ngày</th></tr></thead>
-            <tbody>
-              ${[...storeTx].sort((a, b) => (safeTrim(b.Date)).localeCompare(safeTrim(a.Date))).map((t) => `
-                <tr>
-                  <td style="font-weight:500">${safeTrim(t.Item)}${t.Description ? `<div style="font-size:11px;color:var(--dim)">${safeTrim(t.Description)}</div>` : ""}</td>
-                  <td><span class="badge-tx ${t.TxType === "in" ? "badge-in" : "badge-out"}">${t.TxType === "in" ? "↑ IN" : "↓ OUT"}</span></td>
-                  <td class="mono" style="font-size:15px;font-weight:600;color:${t.TxType === "in" ? "var(--in)" : "var(--out)"}">${toNumber(t.Quantity, 0)}</td>
-                  <td style="font-size:11px;color:var(--muted)">${safeTrim(t.Assigned) || "—"}</td>
-                  <td>${statusBadge(t.Status)}</td>
-                  <td class="mono" style="font-size:11px;color:var(--muted);white-space:nowrap">${fmtDate(safeTrim(t.Date)) || "—"}</td>
-                </tr>
-              `).join("")}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    ` : ""}
+    </div>
   `;
 }
 
-window.showPage = showPage;
-window.renderStoreDetail = renderStoreDetail;
+let editingStoreId = null;
 
 function openStoreModal(storeId) {
-  if (!requireAuth("chỉnh sửa cửa hàng")) return;
-  const store = STORES.find((s) => String(s.id) === String(storeId));
+  if (!requireAuth("chỉnh sửa store")) return;
+  editingStoreId = storeId ?? null;
+  const store = STORES.find((s) => String(s.id) === String(editingStoreId));
   if (!store) return;
-  editingStoreId = storeId;
-  const g = (keys) => { for (const k of keys) { const v = safeTrim(store[k]); if (v) return v; } return ""; };
+  const g = (keys) => { for (const k of keys) { const v = store[k]; if (v !== undefined && v !== null) return safeTrim(String(v)); } return ""; };
   $("stCode").value        = g(["Store code","store_code"]);
   $("stName").value        = g(["Store name","store_name"]);
   $("stBrand").value       = g(["Brand","brand"]);
@@ -868,7 +717,7 @@ function openStoreModal(storeId) {
   $("stAM").value          = g(["AM","am"]);
   $("stOpenDate").value    = g(["Open date","open_date"]);
   $("stTotalArea").value   = store.TotalArea ?? store.total_area ?? "";
-  $("stSellArea").value    = store.SellArea ?? store.sell_area ?? "";
+  $("stSellArea").value    = store.SellArea  ?? store.sell_area  ?? "";
   $("stRegion").value      = g(["Region","region"]);
   $("stCostCenter").value  = g(["Cost Center","cost_center","CostCenter"]);
   $("stAddress").value     = g(["Address","address"]);
@@ -885,33 +734,28 @@ async function submitStore() {
   if (!editingStoreId) return;
   const store = STORES.find((s) => String(s.id) === String(editingStoreId));
   if (!store) return;
-  const code     = safeTrim($("stCode").value);
-  const name     = safeTrim($("stName").value);
+  const code = safeTrim($("stCode").value);
+  const name = safeTrim($("stName").value);
   if (!code || !name) { showToast("Vui lòng nhập Store code và Store name.", "error"); return; }
   const payload = {
-    "Store code":  code,
-    "Store name":  name,
-    store_code: code, store_name: name, storeKey: code.toLowerCase(),
-    Brand:         safeTrim($("stBrand").value),
-    Brand2:        safeTrim($("stBrand2").value),
-    Type:          safeTrim($("stType").value),
-    "Type 2":      safeTrim($("stType2").value),
-    Incharge:      safeTrim($("stIncharge").value),
-    Position:      safeTrim($("stPosition").value),
-    Phone:         safeTrim($("stPhone").value),
-    Email:         safeTrim($("stEmail").value),
-    AM:            safeTrim($("stAM").value),
-    "Open date":   safeTrim($("stOpenDate").value),
-    TotalArea:     parseFloat($("stTotalArea").value) || 0,
-    SellArea:      parseFloat($("stSellArea").value) || 0,
-    Region:        safeTrim($("stRegion").value),
+    "Store code": code, store_code: code, "Store name": name, store_name: name,
+    storeKey: code.toLowerCase(),
+    Brand: safeTrim($("stBrand").value),   Brand2: safeTrim($("stBrand2").value),
+    Type:  safeTrim($("stType").value),    "Type 2": safeTrim($("stType2").value),
+    Incharge: safeTrim($("stIncharge").value), Position: safeTrim($("stPosition").value),
+    Phone: safeTrim($("stPhone").value),   Email: safeTrim($("stEmail").value),
+    AM:    safeTrim($("stAM").value),      "Open date": safeTrim($("stOpenDate").value),
+    TotalArea:   parseFloat($("stTotalArea").value) || 0,
+    SellArea:    parseFloat($("stSellArea").value)  || 0,
+    Region:      safeTrim($("stRegion").value),
     "Cost Center": safeTrim($("stCostCenter").value),
-    Address:       safeTrim($("stAddress").value),
-    updatedAt: serverTimestamp(),
+    Address:     safeTrim($("stAddress").value),
+    updated_at: new Date().toISOString(),
   };
   try {
     $("btnSubmitStore").disabled = true;
-    await updateDoc(doc(db, "stores", String(editingStoreId)), payload);
+    const { error } = await supabase.from("stores").update(payload).eq("id", store.id);
+    if (error) throw error;
     Object.assign(store, payload);
     buildAutocompleteSources();
     showToast(`✓ Đã cập nhật: ${name}`, "success");
@@ -924,26 +768,23 @@ async function submitStore() {
   }
 }
 
-window.openStoreModal = openStoreModal;
+window.openStoreModal  = openStoreModal;
+window.renderStoreDetail = renderStoreDetail;
 
 async function toggleO2O(storeCode) {
   const store = STORES.find((s) => safeTrim(s["Store code"] || s.store_code) === storeCode);
   if (!store) return;
-  const isOn = !!safeTrim(store.O2O || store.o2o);
+  const isOn  = !!safeTrim(store.O2O || store.o2o);
   const newVal = isOn ? "" : "O2O";
   store.O2O = newVal;
   if (store.o2o !== undefined) store.o2o = newVal;
-  try {
-    const ref = doc(db, "stores", store.id);
-    await updateDoc(ref, { O2O: newVal, updatedAt: serverTimestamp() });
-  } catch (e) {
-    console.error("toggleO2O:", e);
-  }
+  const { error } = await supabase.from("stores").update({ O2O: newVal, updated_at: new Date().toISOString() }).eq("id", store.id);
+  if (error) console.error("toggleO2O:", error);
   renderStoreDetail(storeCode);
 }
 window.toggleO2O = toggleO2O;
 
-// ── OFFICES / WAREHOUSES ──────────────────────────────────
+// ── OFFICES ───────────────────────────────────────────────
 function renderOffices() {
   const cards = OFFICES.map((o) => {
     const code = safeTrim(o.code || o.Code || o["Office code"]);
@@ -981,13 +822,12 @@ function renderOfficeDetail(code) {
   const office = OFFICES.find((o) => safeTrim(o.code || o.Code || o["Office code"]) === code);
   if (!office) return;
   const officeName = safeTrim(office.name || office.Name || office["Office name"]);
-  const assigned = TX.filter((t) => t.TxType === "out" && matchAssigned(t.Assigned, code, officeName));
-
+  const assigned   = TX.filter((t) => t.TxType === "out" && matchAssigned(t.Assigned, code, officeName));
   $("main").innerHTML = `
     <div class="page-header" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <button class="btn-secondary" onclick="showPage('offices')">← Quay lại</button>
       <div>
-        <div class="page-title">🏢 ${safeTrim(office.name || office.Name || office["Office name"])}</div>
+        <div class="page-title">🏢 ${officeName}</div>
         <div class="page-sub">${code} · ${safeTrim(office.location || office.Location || "")}</div>
       </div>
     </div>
@@ -1013,26 +853,23 @@ function renderOfficeDetail(code) {
   `;
 }
 
-let editingStoreId = null;
 let editingOfficeId = null;
 
 function openOfficeModal(officeId) {
   if (!requireAuth("thêm/chỉnh sửa văn phòng")) return;
   editingOfficeId = officeId ?? null;
   const isEdit = editingOfficeId != null;
-
   $("officeModalTitle").textContent = isEdit ? "✎ Chỉnh sửa văn phòng" : "＋ Thêm văn phòng";
-  $("btnSubmitOffice").textContent = isEdit ? "Cập nhật" : "Lưu văn phòng";
-
+  $("btnSubmitOffice").textContent  = isEdit ? "Cập nhật" : "Lưu văn phòng";
   if (isEdit) {
     const o = OFFICES.find((x) => String(x.id) === String(editingOfficeId));
     if (!o) return;
-    $("ofCode").value = safeTrim(o.code || o.Code || o["Office code"]);
-    $("ofName").value = safeTrim(o.name || o.Name || o["Office name"]);
+    $("ofCode").value     = safeTrim(o.code || o.Code || o["Office code"]);
+    $("ofName").value     = safeTrim(o.name || o.Name || o["Office name"]);
     $("ofLocation").value = safeTrim(o.location || o.Location || "");
     $("ofIncharge").value = safeTrim(o.incharge || o.Incharge || "");
   } else {
-    ["ofCode", "ofName", "ofLocation", "ofIncharge"].forEach((id) => ($(id).value = ""));
+    ["ofCode","ofName","ofLocation","ofIncharge"].forEach((id) => ($(id).value = ""));
   }
   $("officeModal").classList.add("open");
   setTimeout(() => $(isEdit ? "ofName" : "ofCode").focus(), 150);
@@ -1044,28 +881,23 @@ function closeOfficeModal() {
 }
 
 async function submitOffice() {
-  const code = safeTrim($("ofCode").value);
-  const name = safeTrim($("ofName").value);
+  const code     = safeTrim($("ofCode").value);
+  const name     = safeTrim($("ofName").value);
   const location = safeTrim($("ofLocation").value);
   const incharge = safeTrim($("ofIncharge").value);
-  if (!code || !name) {
-    showToast("Vui lòng nhập mã và tên văn phòng.", "error");
-    return;
-  }
+  if (!code || !name) { showToast("Vui lòng nhập mã và tên văn phòng.", "error"); return; }
   try {
     $("btnSubmitOffice").disabled = true;
     if (editingOfficeId != null) {
-      const ref = doc(db, "offices", String(editingOfficeId));
-      await updateDoc(ref, { code, name, location, incharge, updatedAt: serverTimestamp() });
+      const { error } = await supabase.from("offices").update({ code, name, location, incharge, updated_at: new Date().toISOString() }).eq("id", editingOfficeId);
+      if (error) throw error;
       const o = OFFICES.find((x) => String(x.id) === String(editingOfficeId));
       if (o) { o.code = code; o.name = name; o.location = location; o.incharge = incharge; }
       showToast(`✓ Đã cập nhật văn phòng: ${name}`, "success");
     } else {
-      const ref = doc(collection(db, "offices"));
-      const batch = writeBatch(db);
-      batch.set(ref, { code, name, location, incharge, createdAt: serverTimestamp() });
-      await batch.commit();
-      OFFICES.push({ id: ref.id, code, name, location, incharge });
+      const { data, error } = await supabase.from("offices").insert({ code, name, location, incharge }).select().single();
+      if (error) throw error;
+      OFFICES.push({ ...data });
       $("cnt-offices").textContent = OFFICES.length;
       showToast(`✓ Đã thêm văn phòng: ${name}`, "success");
     }
@@ -1085,7 +917,8 @@ async function deleteOffice(id) {
   if (!o) return;
   if (!confirm(`Xoá văn phòng "${safeTrim(o.name || o.Name || "")}"?`)) return;
   try {
-    await deleteDoc(doc(db, "offices", String(id)));
+    const { error } = await supabase.from("offices").delete().eq("id", id);
+    if (error) throw error;
     OFFICES = OFFICES.filter((x) => String(x.id) !== String(id));
     $("cnt-offices").textContent = OFFICES.length;
     buildAutocompleteSources();
@@ -1096,6 +929,7 @@ async function deleteOffice(id) {
   }
 }
 
+// ── WAREHOUSES ────────────────────────────────────────────
 function renderWarehouses() {
   const cards = WAREHOUSES.map((w) => {
     const code = safeTrim(w.code || w.Code || w["Warehouse code"]);
@@ -1135,21 +969,15 @@ function renderWarehouseDetail(code) {
   const warehouseName = safeTrim(warehouse.name || warehouse.Name || warehouse["Warehouse name"]);
   const assigned = TX.filter((t) => t.TxType === "out" && matchAssigned(t.Assigned, code, warehouseName));
 
-  // Group by item name: sum quantity, collect all serials
   const itemMap = {};
   assigned.forEach((t) => {
     const key = safeTrim(t.Item);
     if (!key) return;
     if (!itemMap[key]) itemMap[key] = { item: key, qty: 0, sns: [], unit: safeTrim(t.Unit) || "", desc: safeTrim(t.Description) || "", status: t.Status, lastDate: "" };
     itemMap[key].qty += toNumber(t.Quantity, 0);
-    // collect serials – support both array and string formats
     const snVal = t.SN;
-    if (Array.isArray(snVal)) {
-      snVal.forEach((s) => { const v = cleanSN(s); if (v) itemMap[key].sns.push(v); });
-    } else {
-      const v = safeTrim(snVal);
-      if (v) v.split(/[\n,]+/).forEach((s) => { const sv = cleanSN(s); if (sv) itemMap[key].sns.push(sv); });
-    }
+    if (Array.isArray(snVal)) snVal.forEach((s) => { const v = cleanSN(s); if (v) itemMap[key].sns.push(v); });
+    else { const v = safeTrim(snVal); if (v) v.split(/[\n,]+/).forEach((s) => { const sv = cleanSN(s); if (sv) itemMap[key].sns.push(sv); }); }
     if (safeTrim(t.Date) > itemMap[key].lastDate) itemMap[key].lastDate = safeTrim(t.Date);
   });
   const grouped = Object.values(itemMap).sort((a, b) => a.item.localeCompare(b.item));
@@ -1158,7 +986,7 @@ function renderWarehouseDetail(code) {
     <div class="page-header" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <button class="btn-secondary" onclick="showPage('warehouses')">← Quay lại</button>
       <div>
-        <div class="page-title">🏭 ${safeTrim(warehouse.name || warehouse.Name || warehouse["Warehouse name"])}</div>
+        <div class="page-title">🏭 ${warehouseName}</div>
         <div class="page-sub">${code} · ${safeTrim(warehouse.location || warehouse.Location || "")}</div>
       </div>
     </div>
@@ -1172,11 +1000,7 @@ function renderWarehouseDetail(code) {
                 <td style="font-weight:500">${d.item}</td>
                 <td style="font-size:11px;color:var(--dim)">${d.desc || "—"}</td>
                 <td class="mono" style="font-weight:600;font-size:15px;color:var(--accent)">${d.qty} <span style="font-size:11px;color:var(--muted)">${d.unit}</span></td>
-                <td class="mono" style="font-size:11px;color:var(--dim)">
-                  ${d.sns.length
-                    ? d.sns.map((s) => `<div style="white-space:nowrap">${s}</div>`).join("")
-                    : "—"}
-                </td>
+                <td class="mono" style="font-size:11px;color:var(--dim)">${d.sns.length ? d.sns.map((s) => `<div style="white-space:nowrap">${s}</div>`).join("") : "—"}</td>
                 <td class="mono" style="font-size:11px;color:var(--muted)">${fmtDate(d.lastDate) || "—"}</td>
                 <td>${statusBadge(d.status)}</td>
               </tr>
@@ -1190,23 +1014,21 @@ function renderWarehouseDetail(code) {
 
 let editingWarehouseId = null;
 
-function openWarehouseModal(warehouseId) {
+function openWarehouseModal(whId) {
   if (!requireAuth("thêm/chỉnh sửa kho")) return;
-  editingWarehouseId = warehouseId ?? null;
+  editingWarehouseId = whId ?? null;
   const isEdit = editingWarehouseId != null;
-
   $("warehouseModalTitle").textContent = isEdit ? "✎ Chỉnh sửa kho" : "＋ Thêm kho";
-  $("btnSubmitWarehouse").textContent = isEdit ? "Cập nhật" : "Lưu kho";
-
+  $("btnSubmitWarehouse").textContent  = isEdit ? "Cập nhật" : "Lưu kho";
   if (isEdit) {
     const w = WAREHOUSES.find((x) => String(x.id) === String(editingWarehouseId));
     if (!w) return;
-    $("whCode").value = safeTrim(w.code || w.Code || w["Warehouse code"]);
-    $("whName").value = safeTrim(w.name || w.Name || w["Warehouse name"]);
+    $("whCode").value     = safeTrim(w.code || w.Code || w["Warehouse code"]);
+    $("whName").value     = safeTrim(w.name || w.Name || w["Warehouse name"]);
     $("whLocation").value = safeTrim(w.location || w.Location || "");
     $("whIncharge").value = safeTrim(w.incharge || w.Incharge || "");
   } else {
-    ["whCode", "whName", "whLocation", "whIncharge"].forEach((id) => ($(id).value = ""));
+    ["whCode","whName","whLocation","whIncharge"].forEach((id) => ($(id).value = ""));
   }
   $("warehouseModal").classList.add("open");
   setTimeout(() => $(isEdit ? "whName" : "whCode").focus(), 150);
@@ -1218,28 +1040,23 @@ function closeWarehouseModal() {
 }
 
 async function submitWarehouse() {
-  const code = safeTrim($("whCode").value);
-  const name = safeTrim($("whName").value);
+  const code     = safeTrim($("whCode").value);
+  const name     = safeTrim($("whName").value);
   const location = safeTrim($("whLocation").value);
   const incharge = safeTrim($("whIncharge").value);
-  if (!code || !name) {
-    showToast("Vui lòng nhập mã và tên kho.", "error");
-    return;
-  }
+  if (!code || !name) { showToast("Vui lòng nhập mã và tên kho.", "error"); return; }
   try {
     $("btnSubmitWarehouse").disabled = true;
     if (editingWarehouseId != null) {
-      const ref = doc(db, "warehouses", String(editingWarehouseId));
-      await updateDoc(ref, { code, name, location, incharge, updatedAt: serverTimestamp() });
+      const { error } = await supabase.from("warehouses").update({ code, name, location, incharge, updated_at: new Date().toISOString() }).eq("id", editingWarehouseId);
+      if (error) throw error;
       const w = WAREHOUSES.find((x) => String(x.id) === String(editingWarehouseId));
       if (w) { w.code = code; w.name = name; w.location = location; w.incharge = incharge; }
       showToast(`✓ Đã cập nhật kho: ${name}`, "success");
     } else {
-      const ref = doc(collection(db, "warehouses"));
-      const batch = writeBatch(db);
-      batch.set(ref, { code, name, location, incharge, createdAt: serverTimestamp() });
-      await batch.commit();
-      WAREHOUSES.push({ id: ref.id, code, name, location, incharge });
+      const { data, error } = await supabase.from("warehouses").insert({ code, name, location, incharge }).select().single();
+      if (error) throw error;
+      WAREHOUSES.push({ ...data });
       $("cnt-warehouses").textContent = WAREHOUSES.length;
       showToast(`✓ Đã thêm kho: ${name}`, "success");
     }
@@ -1259,7 +1076,8 @@ async function deleteWarehouse(id) {
   if (!w) return;
   if (!confirm(`Xoá kho "${safeTrim(w.name || w.Name || "")}"?`)) return;
   try {
-    await deleteDoc(doc(db, "warehouses", String(id)));
+    const { error } = await supabase.from("warehouses").delete().eq("id", id);
+    if (error) throw error;
     WAREHOUSES = WAREHOUSES.filter((x) => String(x.id) !== String(id));
     $("cnt-warehouses").textContent = WAREHOUSES.length;
     buildAutocompleteSources();
@@ -1270,25 +1088,22 @@ async function deleteWarehouse(id) {
   }
 }
 
-window.renderOfficeDetail = renderOfficeDetail;
-window.openOfficeModal = openOfficeModal;
-window.deleteOffice = deleteOffice;
-window.submitOffice = submitOffice;
+window.renderOfficeDetail   = renderOfficeDetail;
+window.openOfficeModal      = openOfficeModal;
+window.deleteOffice         = deleteOffice;
+window.submitOffice         = submitOffice;
 window.renderWarehouseDetail = renderWarehouseDetail;
-window.openWarehouseModal = openWarehouseModal;
-window.deleteWarehouse = deleteWarehouse;
-window.submitWarehouse = submitWarehouse;
-window.openTxEdit = openTxEdit;
-window.deleteTx = deleteTx;
-window.toggleTxGroup = toggleTxGroup;
+window.openWarehouseModal   = openWarehouseModal;
+window.deleteWarehouse      = deleteWarehouse;
+window.submitWarehouse      = submitWarehouse;
 
 // ── AUTOCOMPLETE SOURCES ──────────────────────────────────
-let AC_ITEMS = [];
+let AC_ITEMS    = [];
 let AC_ASSIGNED = [];
-let AC_TYPES = [];
-let acIndex = -1;
+let AC_TYPES    = [];
+let acIndex         = -1;
 let acAssignedIndex = -1;
-let acTypeIndex = -1;
+let acTypeIndex     = -1;
 
 function buildAutocompleteSources() {
   AC_ITEMS = [...new Map(STOCK.map((s) => [safeTrim(s.Item), { item: safeTrim(s.Item), type: safeTrim(s.TypeDevice) }])).values()].filter((x) => x.item);
@@ -1302,11 +1117,9 @@ function buildAutocompleteSources() {
   ])].filter(Boolean).sort();
 }
 
-// ── TX MODAL / AUTOCOMPLETE ────────────────────────────────
-let newTxType = "in";
+// ── TX MODAL ───────────────────────────────────────────────
+let newTxType   = "in";
 let editingTxId = null;
-let expandedTxGroups = new Set();
-let _txGroupedData = [];
 
 function updateTxSerialFields(qty, prefill = []) {
   const wrapper = $("fSNWrapper");
@@ -1317,10 +1130,8 @@ function updateTxSerialFields(qty, prefill = []) {
   wrapper.innerHTML = "";
   for (let i = 0; i < n; i++) {
     const inp = document.createElement("input");
-    inp.type = "text";
-    inp.className = "field-input sn-input";
-    inp.placeholder = `Serial ${i + 1}`;
-    inp.autocomplete = "off";
+    inp.type = "text"; inp.className = "field-input sn-input";
+    inp.placeholder = `Serial ${i + 1}`; inp.autocomplete = "off";
     inp.value = prefill[i] ?? existing[i] ?? "";
     wrapper.appendChild(inp);
   }
@@ -1328,21 +1139,19 @@ function updateTxSerialFields(qty, prefill = []) {
 }
 
 function getTxSerials() {
-  const inputs = document.querySelectorAll("#fSNWrapper .sn-input");
-  return [...inputs].map((i) => i.value.trim()).filter(Boolean);
+  return [...document.querySelectorAll("#fSNWrapper .sn-input")].map((i) => i.value.trim()).filter(Boolean);
 }
 
 function openModal(prefillType) {
   if (!requireAuth("thêm giao dịch")) return;
   editingTxId = null;
-  $("modalTitle").textContent = "+ Nhập giao dịch mới";
+  $("modalTitle").textContent  = "+ Nhập giao dịch mới";
   $("btnSubmitTx").textContent = "Lưu giao dịch";
   setTxType(prefillType || "in");
-
   $("fDate").value = new Date().toISOString().split("T")[0];
-  ["fItem", "fTypeDevice", "fAssigned", "fDesc"].forEach((id) => ($(id).value = ""));
-  $("fQty").value = 1;
-  $("fUnit").value = "pcs";
+  ["fItem","fTypeDevice","fAssigned","fDesc"].forEach((id) => ($(id).value = ""));
+  $("fQty").value    = 1;
+  $("fUnit").value   = "pcs";
   $("fStatus").value = "";
   updateTxSerialFields(1, []);
   $("txModal").classList.add("open");
@@ -1358,226 +1167,131 @@ function closeModal() {
 
 function setTxType(type) {
   newTxType = type;
-  $("btnIn").classList.toggle("active", type === "in");
+  $("btnIn").classList.toggle("active",  type === "in");
   $("btnOut").classList.toggle("active", type === "out");
 }
 
+// Autocomplete — Item
 function acInput() {
   const q = keyOf($("fItem").value);
   const list = $("acList");
   acIndex = -1;
-  if (!q) {
-    list.classList.remove("open");
-    return;
-  }
+  if (!q) { list.classList.remove("open"); return; }
   const matches = AC_ITEMS.filter((i) => keyOf(i.item).includes(q)).slice(0, 12);
-  if (!matches.length) {
-    list.classList.remove("open");
-    return;
-  }
-  list.innerHTML = matches
-    .map(
-      (m) =>
-        `<div class="autocomplete-item" data-item="${m.item.replace(/"/g, "&quot;")}" data-type="${m.type.replace(
-          /"/g,
-          "&quot;"
-        )}" onmousedown="acSelect(event)">${m.item}<span class="ac-type">${m.type}</span></div>`
-    )
-    .join("");
+  if (!matches.length) { list.classList.remove("open"); return; }
+  list.innerHTML = matches.map((m) => `<div class="autocomplete-item" data-item="${m.item.replace(/"/g,"&quot;")}" data-type="${m.type.replace(/"/g,"&quot;")}" onmousedown="acSelect(event)">${m.item}<span class="ac-type">${m.type}</span></div>`).join("");
   list.classList.add("open");
 }
-
 function acSelect(e) {
   e.preventDefault();
-  const item = e.currentTarget.dataset.item || "";
-  const type = e.currentTarget.dataset.type || "";
-  $("fItem").value = item;
-  $("fTypeDevice").value = type;
+  $("fItem").value = e.currentTarget.dataset.item || "";
+  $("fTypeDevice").value = e.currentTarget.dataset.type || "";
   $("acList").classList.remove("open");
   $("fQty").focus();
 }
-
 function acKey(e) {
   const list = $("acList");
   const items = list.querySelectorAll(".autocomplete-item");
   if (!list.classList.contains("open")) return;
-  if (e.key === "ArrowDown") {
-    e.preventDefault();
-    acIndex = Math.min(acIndex + 1, items.length - 1);
-    acHighlight(items);
-  } else if (e.key === "ArrowUp") {
-    e.preventDefault();
-    acIndex = Math.max(acIndex - 1, -1);
-    acHighlight(items);
-  } else if (e.key === "Enter" && acIndex >= 0) {
-    e.preventDefault();
-    items[acIndex].dispatchEvent(new MouseEvent("mousedown"));
-  } else if (e.key === "Escape") list.classList.remove("open");
+  if (e.key === "ArrowDown")  { e.preventDefault(); acIndex = Math.min(acIndex+1, items.length-1); items.forEach((el,i)=>el.classList.toggle("focused",i===acIndex)); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); acIndex = Math.max(acIndex-1,-1); items.forEach((el,i)=>el.classList.toggle("focused",i===acIndex)); }
+  else if (e.key === "Enter" && acIndex >= 0) { e.preventDefault(); items[acIndex].dispatchEvent(new MouseEvent("mousedown")); }
+  else if (e.key === "Escape") list.classList.remove("open");
 }
 
-function acHighlight(items) {
-  items.forEach((el, i) => el.classList.toggle("focused", i === acIndex));
-  if (acIndex >= 0) items[acIndex].scrollIntoView({ block: "nearest" });
-}
-
+// Autocomplete — Assigned
 function acAssignedInput() {
   const q = keyOf($("fAssigned").value);
   const list = $("acAssignedList");
   acAssignedIndex = -1;
-  if (!q) {
-    list.classList.remove("open");
-    return;
-  }
-  const matches = AC_ASSIGNED.filter((a) => keyOf(a).includes(q)).slice(0, 10);
-  if (!matches.length) {
-    list.classList.remove("open");
-    return;
-  }
-  list.innerHTML = matches.map((m) => `<div class="autocomplete-item" onmousedown="acAssignedSelect(event)">${m}</div>`).join("");
+  if (!q) { list.classList.remove("open"); return; }
+  const matches = AC_ASSIGNED.filter((a) => keyOf(a).includes(q)).slice(0, 12);
+  if (!matches.length) { list.classList.remove("open"); return; }
+  list.innerHTML = matches.map((m) => `<div class="autocomplete-item" onmousedown="acAssignedSelect('${m.replace(/'/g,"\\'")}')">${m}</div>`).join("");
   list.classList.add("open");
 }
-
-function acAssignedSelect(e) {
-  e.preventDefault();
-  $("fAssigned").value = e.currentTarget.textContent || "";
+function acAssignedSelect(val) {
+  $("fAssigned").value = val;
   $("acAssignedList").classList.remove("open");
+  $("fDate").focus();
 }
-
 function acAssignedKey(e) {
   const list = $("acAssignedList");
   const items = list.querySelectorAll(".autocomplete-item");
   if (!list.classList.contains("open")) return;
-  if (e.key === "ArrowDown") {
-    e.preventDefault();
-    acAssignedIndex = Math.min(acAssignedIndex + 1, items.length - 1);
-    items.forEach((el, i) => el.classList.toggle("focused", i === acAssignedIndex));
-  } else if (e.key === "ArrowUp") {
-    e.preventDefault();
-    acAssignedIndex = Math.max(acAssignedIndex - 1, -1);
-    items.forEach((el, i) => el.classList.toggle("focused", i === acAssignedIndex));
-  } else if (e.key === "Enter" && acAssignedIndex >= 0) {
-    e.preventDefault();
-    items[acAssignedIndex].dispatchEvent(new MouseEvent("mousedown"));
-  } else if (e.key === "Escape") list.classList.remove("open");
+  if (e.key === "ArrowDown")  { e.preventDefault(); acAssignedIndex = Math.min(acAssignedIndex+1, items.length-1); items.forEach((el,i)=>el.classList.toggle("focused",i===acAssignedIndex)); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); acAssignedIndex = Math.max(acAssignedIndex-1,-1); items.forEach((el,i)=>el.classList.toggle("focused",i===acAssignedIndex)); }
+  else if (e.key === "Enter" && acAssignedIndex >= 0) { e.preventDefault(); items[acAssignedIndex].dispatchEvent(new MouseEvent("mousedown")); }
+  else if (e.key === "Escape") list.classList.remove("open");
 }
 
+// Autocomplete — TypeDevice
+function acTypeInput() {
+  const q = keyOf($("sfType").value);
+  const list = $("acTypeList");
+  acTypeIndex = -1;
+  if (!q) { list.classList.remove("open"); return; }
+  const matches = AC_TYPES.filter((t) => keyOf(t).includes(q)).slice(0, 10);
+  if (!matches.length) { list.classList.remove("open"); return; }
+  list.innerHTML = matches.map((m) => `<div class="autocomplete-item" onmousedown="acTypeSelect('${m.replace(/'/g,"\\'")}')">${m}</div>`).join("");
+  list.classList.add("open");
+}
+function acTypeSelect(val) {
+  $("sfType").value = val;
+  $("acTypeList").classList.remove("open");
+  $("sfStock").focus();
+}
+function acTypeKey(e) {
+  const list = $("acTypeList");
+  const items = list.querySelectorAll(".autocomplete-item");
+  if (!list.classList.contains("open")) return;
+  if (e.key === "ArrowDown")  { e.preventDefault(); acTypeIndex = Math.min(acTypeIndex+1, items.length-1); items.forEach((el,i)=>el.classList.toggle("focused",i===acTypeIndex)); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); acTypeIndex = Math.max(acTypeIndex-1,-1); items.forEach((el,i)=>el.classList.toggle("focused",i===acTypeIndex)); }
+  else if (e.key === "Enter" && acTypeIndex >= 0) { e.preventDefault(); items[acTypeIndex].dispatchEvent(new MouseEvent("mousedown")); }
+  else if (e.key === "Escape") list.classList.remove("open");
+}
+
+window.acInput          = acInput;
+window.acSelect         = acSelect;
+window.acKey            = acKey;
+window.acAssignedInput  = acAssignedInput;
+window.acAssignedSelect = acAssignedSelect;
+window.acAssignedKey    = acAssignedKey;
+window.acTypeInput      = acTypeInput;
+window.acTypeSelect     = acTypeSelect;
+window.acTypeKey        = acTypeKey;
+window.openModal        = openModal;
+
+// ── EDIT TX ────────────────────────────────────────────────
 function openTxEdit(txId) {
   if (!requireAuth("chỉnh sửa giao dịch")) return;
   const t = TX.find((x) => String(x.id) === String(txId));
   if (!t) return;
   editingTxId = txId;
-  $("modalTitle").textContent = "✎ Chỉnh sửa giao dịch";
+  $("modalTitle").textContent  = "✎ Chỉnh sửa giao dịch";
   $("btnSubmitTx").textContent = "Cập nhật";
   setTxType(t.TxType || "out");
-  $("fItem").value = safeTrim(t.Item);
+  $("fItem").value      = safeTrim(t.Item);
   $("fTypeDevice").value = safeTrim(t.TypeDevice || "");
-  $("fQty").value = toNumber(t.Quantity, 1);
-  $("fDate").value = safeTrim(t.Date);
-  $("fDesc").value = safeTrim(t.Description);
-  $("fUnit").value = safeTrim(t.Unit) || "pcs";
-  $("fAssigned").value = safeTrim(t.Assigned);
-  $("fStatus").value = safeTrim(t.Status);
+  $("fQty").value       = toNumber(t.Quantity, 1);
+  $("fDate").value      = safeTrim(t.Date);
+  $("fDesc").value      = safeTrim(t.Description);
+  $("fUnit").value      = safeTrim(t.Unit) || "pcs";
+  $("fAssigned").value  = safeTrim(t.Assigned);
+  $("fStatus").value    = safeTrim(t.Status);
   const _snPrefill = Array.isArray(t.SN) ? t.SN.filter(Boolean) : safeTrim(t.SN).split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
   updateTxSerialFields(toNumber(t.Quantity, 1), _snPrefill);
   $("txModal").classList.add("open");
   setTimeout(() => $("fItem").focus(), 150);
 }
+window.openTxEdit = openTxEdit;
 
-async function deleteTx(txId) {
-  if (!requireAuth("xóa giao dịch", "admin")) return;
-  const t = TX.find((x) => String(x.id) === String(txId));
-  if (!t || !confirm(`Xoá giao dịch "${safeTrim(t.Item)}" (${safeTrim(t.Date)})?`)) return;
-  try {
-    const batch = writeBatch(db);
-    batch.delete(doc(db, "transactions", String(txId)));
-
-    // Revert stock: IN → subtract back, OUT → add back
-    const itemKey = keyOf(safeTrim(t.Item));
-    if (itemKey) {
-      const stockSnap = await getDocs(query(collection(db, "stock"), where("itemKey", "==", itemKey)));
-      if (!stockSnap.empty) {
-        const sd = stockSnap.docs[0];
-        const revert = t.TxType === "in" ? -toNumber(t.Quantity, 0) : toNumber(t.Quantity, 0);
-        const newStock = Math.max(0, toNumber(sd.data().Stock, 0) + revert);
-        batch.update(sd.ref, { Stock: newStock, updatedAt: serverTimestamp() });
-      }
-    }
-
-    await batch.commit();
-    TX = TX.filter((x) => String(x.id) !== String(txId));
-    $("cnt-tx").textContent = TX.length;
-
-    // Reload stock to keep UI in sync
-    STOCK = (await loadCollection("stock")).map((s) => ({ ...s, Stock: toNumber(s.Stock, 0), TypeDevice: safeTrim(s.TypeDevice) }));
-    $("cnt-stock").textContent = STOCK.length;
-    buildAutocompleteSources();
-
-    showToast("Đã xoá giao dịch & cập nhật tồn kho.", "success");
-    render();
-  } catch (e) {
-    showToast(`Lỗi xóa: ${e?.message || e}`, "error");
-  }
-}
-
-function toggleTxGroup(grpKey) {
-  if (expandedTxGroups.has(grpKey)) expandedTxGroups.delete(grpKey);
-  else expandedTxGroups.add(grpKey);
-  render();
-}
-
-function showTxGroupDetail(grpKey) {
-  const grp = _txGroupedData.find((g) => g.key === grpKey);
-  if (!grp) return;
-  const _bs = "background:transparent;border:none;cursor:pointer;font-size:13px;padding:2px 5px;border-radius:3px;transition:color .15s";
-  const _isSingle = grp.rawTxs.length === 1;
-  const box = $("txGroupDetailModal");
-  $("txGroupDetailTitle").innerHTML = `<span style="font-weight:600">${grp.item}</span> <span class="badge-tx ${grp.txType === "in" ? "badge-in" : "badge-out"}">${grp.txType === "in" ? "↑ IN" : "↓ OUT"}</span> <span style="color:var(--dim);font-size:13px">— ${_isSingle ? `SL: ${grp.qty}` : `${grp.rawTxs.length} giao dịch, tổng ${grp.qty}`}</span>`;
-  $("txGroupDetailBody").innerHTML = grp.rawTxs.map((t, i) => {
-    const _tsn = Array.isArray(t.SN) ? t.SN.map(cleanSN).filter(Boolean) : safeTrim(t.SN).split(/[\n,]+/).map(cleanSN).filter(Boolean);
-    return `
-      <div class="txg-card">
-        <div class="txg-card-header">
-          ${_isSingle ? "" : `<span class="txg-card-no">#${i + 1}</span>`}
-          <span class="mono" style="font-size:12px;color:var(--muted)">${fmtDate(safeTrim(t.Date)) || "—"}</span>
-          <div style="margin-left:auto;display:flex;gap:4px">
-            <button onclick="openTxEdit('${t.id}');closeTxGroupDetail()" style="${_bs};color:var(--dim)" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--dim)'" title="Chỉnh sửa">✎</button>
-            <button onclick="deleteTx('${t.id}');closeTxGroupDetail()" style="${_bs};color:var(--dim)" onmouseover="this.style.color='var(--out)'" onmouseout="this.style.color='var(--dim)'" title="Xoá">✕</button>
-          </div>
-        </div>
-        <div class="txg-card-body">
-          <div class="txg-row"><span class="txg-label">Số lượng</span><span class="mono" style="font-weight:600;font-size:16px;color:${t.TxType === "in" ? "var(--in)" : "var(--out)"}">${t.TxType === "in" ? "+" : "-"}${toNumber(t.Quantity, 0)} ${safeTrim(t.Unit) || "pcs"}</span></div>
-          <div class="txg-row"><span class="txg-label">Giao cho</span><span>${safeTrim(t.Assigned) || "—"}</span></div>
-          <div class="txg-row"><span class="txg-label">Trạng thái</span><span>${statusBadge(t.Status)}</span></div>
-          ${_tsn.length ? `<div class="txg-row" style="align-items:flex-start"><span class="txg-label">Serial</span><div class="mono" style="font-size:11px;display:flex;flex-direction:column;gap:3px">${_tsn.map((s, si) => `<div style="display:flex;align-items:center;gap:6px"><span style="color:var(--accent);font-size:9px;min-width:14px">${si + 1}.</span><span>${s}</span></div>`).join("")}</div></div>` : ""}
-          ${safeTrim(t.Description) ? `<div class="txg-row"><span class="txg-label">Mô tả</span><span style="font-size:12px;color:var(--dim)">${safeTrim(t.Description)}</span></div>` : ""}
-        </div>
-      </div>`;
-  }).join("");
-  box.classList.add("open");
-}
-
-function closeTxGroupDetail() {
-  $("txGroupDetailModal").classList.remove("open");
-}
-
-window.showTxGroupDetail = showTxGroupDetail;
-window.closeTxGroupDetail = closeTxGroupDetail;
-
-// expose autocomplete handlers
-window.openModal = openModal;
-window.acInput = acInput;
-window.acSelect = acSelect;
-window.acKey = acKey;
-window.acAssignedInput = acAssignedInput;
-window.acAssignedSelect = acAssignedSelect;
-window.acAssignedKey = acAssignedKey;
-
-// ── SUBMIT TX (FIRESTORE) ──────────────────────────────────
+// ── SUBMIT TX (SUPABASE) ───────────────────────────────────
 async function submitTransaction() {
   if (!requireAuth("lưu giao dịch")) return;
 
   const item = safeTrim($("fItem").value);
-  const qty = toNumber($("fQty").value, 0);
+  const qty  = toNumber($("fQty").value, 0);
   const date = safeTrim($("fDate").value);
   if (!item || qty <= 0 || !date) {
     showToast("Vui lòng điền đầy đủ thông tin bắt buộc.", "error");
@@ -1593,56 +1307,50 @@ async function submitTransaction() {
       if (!oldTx) { showToast("Không tìm thấy giao dịch.", "error"); return; }
 
       const updatePayload = {
-        Item: item,
-        itemKey: keyOf(item),
+        Item: item, itemKey: keyOf(item),
         Description: safeTrim($("fDesc").value),
-        Date: date,
-        TxType: newTxType,
-        Quantity: qty,
+        Date: date, TxType: newTxType, Quantity: qty,
         Unit: safeTrim($("fUnit").value) || "pcs",
         Assigned: safeTrim($("fAssigned").value),
-        Status: safeTrim($("fStatus").value),
-        SN: getTxSerials(),
-        updatedAt: serverTimestamp(),
-        updatedBy: currentUser?.uid || null,
+        Status:   safeTrim($("fStatus").value),
+        SN:       getTxSerials(),
+        updated_at: new Date().toISOString(),
+        updatedBy:  currentUser?.id || null,
       };
 
-      const batch = writeBatch(db);
-      batch.update(doc(db, "transactions", String(editingTxId)), updatePayload);
+      const { error: txErr } = await supabase.from("transactions").update(updatePayload).eq("id", editingTxId);
+      if (txErr) throw txErr;
 
+      // Update stock
       const oldItemKey = keyOf(safeTrim(oldTx.Item));
       const newItemKey = keyOf(item);
 
       if (oldItemKey === newItemKey) {
-        const stockSnap = await getDocs(query(collection(db, "stock"), where("itemKey", "==", newItemKey)));
-        if (!stockSnap.empty) {
-          const sd = stockSnap.docs[0];
+        const { data: stockRows } = await supabase.from("stock").select("id,Stock").eq("itemKey", newItemKey);
+        if (stockRows?.length) {
+          const sd = stockRows[0];
           const revert = oldTx.TxType === "in" ? -toNumber(oldTx.Quantity, 0) : toNumber(oldTx.Quantity, 0);
           const apply  = newTxType === "in" ? qty : -qty;
-          batch.update(sd.ref, { Stock: Math.max(0, toNumber(sd.data().Stock, 0) + revert + apply), updatedAt: serverTimestamp() });
+          await supabase.from("stock").update({ Stock: Math.max(0, toNumber(sd.Stock,0) + revert + apply), updated_at: new Date().toISOString() }).eq("id", sd.id);
         }
       } else {
-        const [oldSnap, newSnap] = await Promise.all([
-          getDocs(query(collection(db, "stock"), where("itemKey", "==", oldItemKey))),
-          getDocs(query(collection(db, "stock"), where("itemKey", "==", newItemKey))),
+        const [{ data: oldRows }, { data: newRows }] = await Promise.all([
+          supabase.from("stock").select("id,Stock").eq("itemKey", oldItemKey),
+          supabase.from("stock").select("id,Stock").eq("itemKey", newItemKey),
         ]);
-        if (!oldSnap.empty) {
-          const od = oldSnap.docs[0];
+        if (oldRows?.length) {
           const revert = oldTx.TxType === "in" ? -toNumber(oldTx.Quantity, 0) : toNumber(oldTx.Quantity, 0);
-          batch.update(od.ref, { Stock: Math.max(0, toNumber(od.data().Stock, 0) + revert), updatedAt: serverTimestamp() });
+          await supabase.from("stock").update({ Stock: Math.max(0, toNumber(oldRows[0].Stock,0) + revert), updated_at: new Date().toISOString() }).eq("id", oldRows[0].id);
         }
-        if (!newSnap.empty) {
-          const nd = newSnap.docs[0];
+        if (newRows?.length) {
           const apply = newTxType === "in" ? qty : -qty;
-          batch.update(nd.ref, { Stock: Math.max(0, toNumber(nd.data().Stock, 0) + apply), updatedAt: serverTimestamp() });
+          await supabase.from("stock").update({ Stock: Math.max(0, toNumber(newRows[0].Stock,0) + apply), updated_at: new Date().toISOString() }).eq("id", newRows[0].id);
         }
       }
 
-      await batch.commit();
       const idx = TX.findIndex((x) => String(x.id) === String(editingTxId));
       if (idx >= 0) TX[idx] = { ...TX[idx], ...updatePayload };
-
-      STOCK = (await loadCollection("stock")).map((s) => ({ ...s, Stock: toNumber(s.Stock, 0), TypeDevice: safeTrim(s.TypeDevice) }));
+      STOCK = (await loadCollection("stock")).map((s) => ({ ...s, Stock: toNumber(s.Stock,0), TypeDevice: safeTrim(s.TypeDevice) }));
       $("cnt-stock").textContent = STOCK.length;
       buildAutocompleteSources();
       closeModal();
@@ -1651,12 +1359,9 @@ async function submitTransaction() {
 
     } else {
       // ── ADD MODE ───────────────────────────────────────
-
-      // Check stock availability for OUT transactions
       if (newTxType === "out") {
-        const itemKey = keyOf(item);
-        const stockSnap = await getDocs(query(collection(db, "stock"), where("itemKey", "==", itemKey)));
-        const currentStock = stockSnap.empty ? 0 : toNumber(stockSnap.docs[0].data().Stock, 0);
+        const { data: stockRows } = await supabase.from("stock").select("Stock").eq("itemKey", keyOf(item));
+        const currentStock = stockRows?.length ? toNumber(stockRows[0].Stock, 0) : 0;
         if (currentStock <= 0) {
           showToast(`⚠ "${item}" không có trong tồn kho (stock = 0). Không thể xuất.`, "error");
           $("btnSubmitTx").disabled = false;
@@ -1670,61 +1375,46 @@ async function submitTransaction() {
         }
       }
 
-      const txRef = doc(collection(db, "transactions"));
-      const batch = writeBatch(db);
-
       const payload = {
-        No: TX.length + 1,
-        Item: item,
-        itemKey: keyOf(item),
+        No: TX.length + 1, Item: item, itemKey: keyOf(item),
         Description: safeTrim($("fDesc").value),
-        Date: date,
-        TxType: newTxType,
-        Quantity: qty,
+        Date: date, TxType: newTxType, Quantity: qty,
         Unit: safeTrim($("fUnit").value) || "pcs",
         Assigned: safeTrim($("fAssigned").value),
-        Status: safeTrim($("fStatus").value),
-        SN: getTxSerials(),
-        Remark: "",
-        createdAt: serverTimestamp(),
-        createdBy: currentUser?.uid || null,
+        Status:   safeTrim($("fStatus").value),
+        SN:       getTxSerials(), Remark: "",
+        created_at: new Date().toISOString(),
+        createdBy:  currentUser?.id || null,
       };
-      batch.set(txRef, payload);
 
-      const itemKey = keyOf(item);
-      const stockSnap = await getDocs(query(collection(db, "stock"), where("itemKey", "==", itemKey)));
+      const { data: txData, error: txErr } = await supabase.from("transactions").insert(payload).select().single();
+      if (txErr) throw txErr;
+
+      // Update stock
+      const itemKey   = keyOf(item);
       const typeDevice = safeTrim($("fTypeDevice").value);
+      const { data: stockRows } = await supabase.from("stock").select("id,Stock,TypeDevice").eq("itemKey", itemKey);
 
-      if (!stockSnap.empty) {
-        const stockDoc = stockSnap.docs[0];
-        const sData = stockDoc.data();
-        const next = Math.max(0, toNumber(sData.Stock, 0) + (newTxType === "in" ? qty : -qty));
-        batch.update(stockDoc.ref, {
-          Item: item, itemKey,
-          TypeDevice: safeTrim(sData.TypeDevice) || typeDevice || "Other",
-          Stock: next, updatedAt: serverTimestamp(),
-        });
+      if (stockRows?.length) {
+        const sd   = stockRows[0];
+        const next = Math.max(0, toNumber(sd.Stock, 0) + (newTxType === "in" ? qty : -qty));
+        await supabase.from("stock").update({ Item: item, itemKey, TypeDevice: safeTrim(sd.TypeDevice) || typeDevice || "Other", Stock: next, updated_at: new Date().toISOString() }).eq("id", sd.id);
       } else if (newTxType === "in") {
-        const sRef = doc(collection(db, "stock"));
-        batch.set(sRef, {
+        await supabase.from("stock").insert({
           No: STOCK.length + 1, Item: item, itemKey,
           TypeDevice: typeDevice || "Other", Stock: qty,
-          Note: "", SN: getTxSerials(),
-          createdAt: serverTimestamp(), createdBy: currentUser?.uid || null,
+          Note: "", SN: getTxSerials(), created_at: new Date().toISOString(), createdBy: currentUser?.id || null,
         });
       }
 
-      await batch.commit();
-      TX.unshift({ id: txRef.id, ...payload, isNew: true });
+      TX.unshift({ ...txData, isNew: true });
       $("cnt-tx").textContent = TX.length;
-
-      STOCK = (await loadCollection("stock")).map((s) => ({ ...s, Stock: toNumber(s.Stock, 0), TypeDevice: safeTrim(s.TypeDevice) }));
+      STOCK = (await loadCollection("stock")).map((s) => ({ ...s, Stock: toNumber(s.Stock,0), TypeDevice: safeTrim(s.TypeDevice) }));
       $("cnt-stock").textContent = STOCK.length;
       buildAutocompleteSources();
       closeModal();
       showToast(`✓ Đã thêm: ${item} (${newTxType === "in" ? "+" : "-"}${qty} ${payload.Unit})`, "success");
-      txFilter = "all";
-      txPage = 1;
+      txFilter = "all"; txPage = 1;
       showPage("transactions");
     }
   } catch (e) {
@@ -1734,36 +1424,60 @@ async function submitTransaction() {
   }
 }
 
-// ── STOCK MODAL (FIRESTORE) ────────────────────────────────
+// ── DELETE TX ──────────────────────────────────────────────
+async function deleteTx(txId) {
+  if (!requireAuth("xóa giao dịch", "admin")) return;
+  const t = TX.find((x) => String(x.id) === String(txId));
+  if (!t || !confirm(`Xoá giao dịch "${safeTrim(t.Item)}" (${safeTrim(t.Date)})?`)) return;
+  try {
+    // Revert stock
+    const itemKey = keyOf(safeTrim(t.Item));
+    if (itemKey) {
+      const { data: stockRows } = await supabase.from("stock").select("id,Stock").eq("itemKey", itemKey);
+      if (stockRows?.length) {
+        const sd     = stockRows[0];
+        const revert = t.TxType === "in" ? -toNumber(t.Quantity, 0) : toNumber(t.Quantity, 0);
+        await supabase.from("stock").update({ Stock: Math.max(0, toNumber(sd.Stock,0) + revert), updated_at: new Date().toISOString() }).eq("id", sd.id);
+      }
+    }
+    const { error } = await supabase.from("transactions").delete().eq("id", txId);
+    if (error) throw error;
+    TX = TX.filter((x) => String(x.id) !== String(txId));
+    $("cnt-tx").textContent = TX.length;
+    STOCK = (await loadCollection("stock")).map((s) => ({ ...s, Stock: toNumber(s.Stock,0), TypeDevice: safeTrim(s.TypeDevice) }));
+    $("cnt-stock").textContent = STOCK.length;
+    buildAutocompleteSources();
+    showToast("Đã xoá giao dịch & cập nhật tồn kho.", "success");
+    render();
+  } catch (e) {
+    showToast(`Lỗi xóa: ${e?.message || e}`, "error");
+  }
+}
+window.deleteTx = deleteTx;
+
+// ── STOCK MODAL (SUPABASE) ─────────────────────────────────
 let editingStockId = null;
 
 function openStockModal(stockId) {
   if (!requireAuth("thêm/chỉnh sửa tồn kho")) return;
   editingStockId = stockId ?? null;
   const isEdit = editingStockId != null;
-
-  $("stockModalTitle").textContent = isEdit ? "✎ Chỉnh sửa thiết bị" : "＋ Thêm thiết bị tồn kho";
-  $("btnStockSubmit").textContent = isEdit ? "Cập nhật" : "Lưu thiết bị";
-  $("sfReasonWrap").style.display = isEdit ? "block" : "none";
-
+  $("stockModalTitle").textContent  = isEdit ? "✎ Chỉnh sửa thiết bị" : "＋ Thêm thiết bị tồn kho";
+  $("btnStockSubmit").textContent   = isEdit ? "Cập nhật" : "Lưu thiết bị";
+  $("sfReasonWrap").style.display   = isEdit ? "block" : "none";
   if (isEdit) {
     const s = STOCK.find((x) => String(x.id) === String(editingStockId));
     if (!s) return;
-    $("sfItem").value = safeTrim(s.Item);
-    $("sfType").value = safeTrim(s.TypeDevice);
+    $("sfItem").value  = safeTrim(s.Item);
+    $("sfType").value  = safeTrim(s.TypeDevice);
     $("sfStock").value = toNumber(s.Stock, 0);
-    $("sfSN").value = safeTrim(s.SN);
-    $("sfNote").value = safeTrim(s.Note);
+    $("sfSN").value    = safeTrim(s.SN);
+    $("sfNote").value  = safeTrim(s.Note);
     $("sfReason").value = "";
   } else {
-    $("sfItem").value = "";
-    $("sfType").value = "";
-    $("sfStock").value = "1";
-    $("sfSN").value = "";
-    $("sfNote").value = "";
-    $("sfReason").value = "";
+    $("sfItem").value = ""; $("sfType").value = ""; $("sfStock").value = "1";
+    $("sfSN").value = ""; $("sfNote").value = ""; $("sfReason").value = "";
   }
-
   $("stockModal").classList.add("open");
   setTimeout(() => $("sfItem").focus(), 150);
 }
@@ -1774,119 +1488,44 @@ function closeStockModal() {
   editingStockId = null;
 }
 
-function acTypeInput() {
-  const q = keyOf($("sfType").value);
-  const list = $("acTypeList");
-  acTypeIndex = -1;
-  if (!q) {
-    list.classList.remove("open");
-    return;
-  }
-  const matches = AC_TYPES.filter((t) => keyOf(t).includes(q)).slice(0, 10);
-  if (!matches.length) {
-    list.classList.remove("open");
-    return;
-  }
-  list.innerHTML = matches.map((m) => `<div class="autocomplete-item" onmousedown="acTypeSelect('${m.replace(/'/g, "\\'")}')">${m}</div>`).join("");
-  list.classList.add("open");
-}
-
-function acTypeSelect(val) {
-  $("sfType").value = val;
-  $("acTypeList").classList.remove("open");
-  $("sfStock").focus();
-}
-
-function acTypeKey(e) {
-  const list = $("acTypeList");
-  const items = list.querySelectorAll(".autocomplete-item");
-  if (!list.classList.contains("open")) return;
-  if (e.key === "ArrowDown") {
-    e.preventDefault();
-    acTypeIndex = Math.min(acTypeIndex + 1, items.length - 1);
-    items.forEach((el, i) => el.classList.toggle("focused", i === acTypeIndex));
-  } else if (e.key === "ArrowUp") {
-    e.preventDefault();
-    acTypeIndex = Math.max(acTypeIndex - 1, -1);
-    items.forEach((el, i) => el.classList.toggle("focused", i === acTypeIndex));
-  } else if (e.key === "Enter" && acTypeIndex >= 0) {
-    e.preventDefault();
-    items[acTypeIndex].dispatchEvent(new MouseEvent("mousedown"));
-  } else if (e.key === "Escape") list.classList.remove("open");
-}
-
-window.acTypeInput = acTypeInput;
-window.acTypeSelect = acTypeSelect;
-window.acTypeKey = acTypeKey;
-
 async function submitStock() {
   if (!requireAuth("lưu tồn kho")) return;
-  const item = safeTrim($("sfItem").value);
-  const type = safeTrim($("sfType").value);
+  const item  = safeTrim($("sfItem").value);
+  const type  = safeTrim($("sfType").value);
   const stock = toNumber($("sfStock").value, NaN);
   if (!item || !type || !Number.isFinite(stock) || stock < 0) {
     showToast("Vui lòng điền đầy đủ thông tin bắt buộc.", "error");
     return;
   }
-
   const itemKey = keyOf(item);
-  const note = safeTrim($("sfNote").value);
-  const sn = safeTrim($("sfSN").value);
+  const note    = safeTrim($("sfNote").value);
+  const sn      = safeTrim($("sfSN").value);
 
   try {
     $("btnStockSubmit").disabled = true;
-
     if (editingStockId != null) {
+      const { error } = await supabase.from("stock").update({ Item: item, itemKey, TypeDevice: type, Stock: stock, Note: note, SN: sn, updated_at: new Date().toISOString() }).eq("id", editingStockId);
+      if (error) throw error;
       const s = STOCK.find((x) => String(x.id) === String(editingStockId));
-      if (!s) throw new Error("Không tìm thấy item để cập nhật.");
-      const ref = doc(db, "stock", String(editingStockId));
-      const batch = writeBatch(db);
-      batch.update(ref, {
-        Item: item,
-        itemKey,
-        TypeDevice: type,
-        Stock: stock,
-        Note: note,
-        SN: sn,
-        updatedAt: serverTimestamp(),
-      });
-      await batch.commit();
-
-      s.Item = item;
-      s.itemKey = itemKey;
-      s.TypeDevice = type;
-      s.Stock = stock;
-      s.Note = note;
-      s.SN = sn;
+      if (s) { s.Item = item; s.itemKey = itemKey; s.TypeDevice = type; s.Stock = stock; s.Note = note; s.SN = sn; }
       showToast(`✓ Đã cập nhật: ${item}`, "success");
     } else {
-      const exists = await getDocs(query(collection(db, "stock"), where("itemKey", "==", itemKey)));
-      if (!exists.empty) {
+      const { data: exists } = await supabase.from("stock").select("id").eq("itemKey", itemKey);
+      if (exists?.length) {
         showToast(`⚠ "${item}" đã tồn tại trong kho. Hãy chỉnh sửa item đó.`, "error");
         return;
       }
-      const ref = doc(collection(db, "stock"));
-      const batch = writeBatch(db);
-      batch.set(ref, {
-        No: STOCK.length + 1,
-        Item: item,
-        itemKey,
-        TypeDevice: type,
-        Stock: stock,
-        Note: note,
-        SN: sn,
-        createdAt: serverTimestamp(),
-        createdBy: currentUser?.uid || null,
-      });
-      await batch.commit();
-      STOCK.push({ id: ref.id, Item: item, itemKey, TypeDevice: type, Stock: stock, Note: note, SN: sn, isNew: true });
+      const { data, error } = await supabase.from("stock").insert({
+        No: STOCK.length + 1, Item: item, itemKey, TypeDevice: type, Stock: stock, Note: note, SN: sn,
+        created_at: new Date().toISOString(), createdBy: currentUser?.id || null,
+      }).select().single();
+      if (error) throw error;
+      STOCK.push({ ...data, isNew: true });
       $("cnt-stock").textContent = STOCK.length;
       showToast(`✓ Đã thêm: ${item} (${stock} units)`, "success");
     }
-
     if (!AC_TYPES.includes(type)) AC_TYPES.push(type);
     buildAutocompleteSources();
-
     closeStockModal();
     render();
   } catch (e) {
@@ -1902,7 +1541,8 @@ async function deleteStock(id) {
   if (!s) return;
   if (!confirm(`Xoá "${safeTrim(s.Item)}" khỏi tồn kho?`)) return;
   try {
-    await deleteDoc(doc(db, "stock", String(id)));
+    const { error } = await supabase.from("stock").delete().eq("id", id);
+    if (error) throw error;
     STOCK = STOCK.filter((x) => String(x.id) !== String(id));
     $("cnt-stock").textContent = STOCK.length;
     buildAutocompleteSources();
@@ -1919,9 +1559,8 @@ async function quickAdjust(id, delta) {
   if (!s) return;
   const newVal = Math.max(0, toNumber(s.Stock, 0) + delta);
   try {
-    const batch = writeBatch(db);
-    batch.update(doc(db, "stock", String(id)), { Stock: newVal, updatedAt: serverTimestamp() });
-    await batch.commit();
+    const { error } = await supabase.from("stock").update({ Stock: newVal, updated_at: new Date().toISOString() }).eq("id", id);
+    if (error) throw error;
     s.Stock = newVal;
     showToast(`${safeTrim(s.Item)}: ${delta > 0 ? "+1 →" : "-1 →"} ${newVal} units`, "success");
     render();
@@ -1932,119 +1571,127 @@ async function quickAdjust(id, delta) {
 
 window.submitStock = submitStock;
 
-// ── EVENTS WIRING ─────────────────────────────────────────
+// ── TX GROUP DETAIL MODAL ──────────────────────────────────
+function showTxGroupDetail(grpKey) {
+  const grp = _txGroupedData.find((g) => g.key === grpKey);
+  if (!grp) return;
+  const _bs = "background:transparent;border:none;cursor:pointer;font-size:13px;padding:2px 5px;border-radius:3px;transition:color .15s";
+  const _isSingle = grp.rawTxs.length === 1;
+  $("txGroupDetailTitle").innerHTML = `<span style="font-weight:600">${grp.item}</span> <span class="badge-tx ${grp.txType==="in"?"badge-in":"badge-out"}">${grp.txType==="in"?"↑ IN":"↓ OUT"}</span> <span style="color:var(--dim);font-size:13px">— ${_isSingle?`SL: ${grp.qty}`:`${grp.rawTxs.length} giao dịch, tổng ${grp.qty}`}</span>`;
+  $("txGroupDetailBody").innerHTML = grp.rawTxs.map((t, i) => {
+    const _tsn = Array.isArray(t.SN) ? t.SN.map(cleanSN).filter(Boolean) : safeTrim(t.SN).split(/[\n,]+/).map(cleanSN).filter(Boolean);
+    return `
+      <div class="txg-card">
+        <div class="txg-card-header">
+          ${_isSingle ? "" : `<span class="txg-card-no">#${i+1}</span>`}
+          <span class="mono" style="font-size:12px;color:var(--muted)">${fmtDate(safeTrim(t.Date)) || "—"}</span>
+          <div style="margin-left:auto;display:flex;gap:4px">
+            <button onclick="openTxEdit('${t.id}');closeTxGroupDetail()" style="${_bs};color:var(--dim)" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--dim)'" title="Chỉnh sửa">✎</button>
+            <button onclick="deleteTx('${t.id}');closeTxGroupDetail()" style="${_bs};color:var(--dim)" onmouseover="this.style.color='var(--out)'" onmouseout="this.style.color='var(--dim)'" title="Xoá">✕</button>
+          </div>
+        </div>
+        <div class="txg-card-body">
+          <div class="txg-row"><span class="txg-label">Số lượng</span><span class="mono" style="font-weight:600;font-size:16px;color:${t.TxType==="in"?"var(--in)":"var(--out)"}">${t.TxType==="in"?"+":"-"}${toNumber(t.Quantity,0)} ${safeTrim(t.Unit)||"pcs"}</span></div>
+          <div class="txg-row"><span class="txg-label">Giao cho</span><span>${safeTrim(t.Assigned)||"—"}</span></div>
+          <div class="txg-row"><span class="txg-label">Trạng thái</span><span>${statusBadge(t.Status)}</span></div>
+          ${_tsn.length?`<div class="txg-row" style="align-items:flex-start"><span class="txg-label">Serial</span><div class="mono" style="font-size:11px;display:flex;flex-direction:column;gap:3px">${_tsn.map((s,si)=>`<div style="display:flex;align-items:center;gap:6px"><span style="color:var(--accent);font-size:9px;min-width:14px">${si+1}.</span><span>${s}</span></div>`).join("")}</div></div>`:""}
+          ${safeTrim(t.Description)?`<div class="txg-row"><span class="txg-label">Mô tả</span><span style="font-size:12px;color:var(--dim)">${safeTrim(t.Description)}</span></div>`:""}
+        </div>
+      </div>`;
+  }).join("");
+  $("txGroupDetailModal").classList.add("open");
+}
+
+function closeTxGroupDetail() {
+  $("txGroupDetailModal").classList.remove("open");
+}
+
+function toggleTxGroup(grpKey) {
+  if (expandedTxGroups.has(grpKey)) expandedTxGroups.delete(grpKey);
+  else expandedTxGroups.add(grpKey);
+  render();
+}
+
+window.showTxGroupDetail = showTxGroupDetail;
+window.closeTxGroupDetail = closeTxGroupDetail;
+window.toggleTxGroup     = toggleTxGroup;
+window.openTxEdit        = openTxEdit;
+
+// ── EVENTS WIRING ──────────────────────────────────────────
 function wireEvents() {
-  // Sidebar navigation
   document.querySelectorAll(".nav-item[data-page]").forEach((el) => {
     el.addEventListener("click", () => showPage(el.dataset.page));
   });
-
-  // Search
   $("globalSearch").addEventListener("input", onSearch);
-
-  // Floating button / shortcuts
   $("fabAddTx").addEventListener("click", () => openModal());
 
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      closeModal();
-      closeStockModal();
-      closeOfficeModal();
-      closeWarehouseModal();
-      closeAuthModal();
-    }
-    if (e.key.toLowerCase() === "n" && !["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement.tagName)) {
-      openModal();
-    }
+    if (e.key === "Escape") { closeModal(); closeStockModal(); closeOfficeModal(); closeWarehouseModal(); closeAuthModal(); }
+    if (e.key.toLowerCase() === "n" && !["INPUT","TEXTAREA","SELECT"].includes(document.activeElement.tagName)) openModal();
   });
 
-  // Close autocomplete on outside click
   document.addEventListener("click", (e) => {
-    if (!e.target.closest(".autocomplete-wrap")) {
-      document.querySelectorAll(".autocomplete-list").forEach((l) => l.classList.remove("open"));
-    }
+    if (!e.target.closest(".autocomplete-wrap")) document.querySelectorAll(".autocomplete-list").forEach((l) => l.classList.remove("open"));
   });
 
-  // Tx modal buttons
   $("btnCloseTx").addEventListener("click", closeModal);
   $("btnCancelTx").addEventListener("click", closeModal);
-  $("btnIn").addEventListener("click", () => setTxType("in"));
+  $("btnIn").addEventListener("click",  () => setTxType("in"));
   $("btnOut").addEventListener("click", () => setTxType("out"));
   $("btnSubmitTx").addEventListener("click", submitTransaction);
-  $("txModal").addEventListener("click", (e) => {
-    if (e.target === $("txModal")) closeModal();
-  });
+  $("txModal").addEventListener("click", (e) => { if (e.target === $("txModal")) closeModal(); });
 
-  // Stock modal buttons
-  $("btnCloseStock").addEventListener("click", closeStockModal);
+  $("btnCloseStock").addEventListener("click",  closeStockModal);
   $("btnCancelStock").addEventListener("click", closeStockModal);
   $("btnStockSubmit").addEventListener("click", submitStock);
-  $("stockModal").addEventListener("click", (e) => {
-    if (e.target === $("stockModal")) closeStockModal();
-  });
+  $("stockModal").addEventListener("click", (e) => { if (e.target === $("stockModal")) closeStockModal(); });
 
-  // Office modal buttons
-  $("btnCloseOffice").addEventListener("click", closeOfficeModal);
+  $("btnCloseOffice").addEventListener("click",  closeOfficeModal);
   $("btnCancelOffice").addEventListener("click", closeOfficeModal);
   $("btnSubmitOffice").addEventListener("click", submitOffice);
-  $("officeModal").addEventListener("click", (e) => {
-    if (e.target === $("officeModal")) closeOfficeModal();
-  });
+  $("officeModal").addEventListener("click", (e) => { if (e.target === $("officeModal")) closeOfficeModal(); });
 
-  // Store modal buttons
-  $("btnCloseStore").addEventListener("click", closeStoreModal);
+  $("btnCloseStore").addEventListener("click",  closeStoreModal);
   $("btnCancelStore").addEventListener("click", closeStoreModal);
   $("btnSubmitStore").addEventListener("click", submitStore);
-  $("storeModal").addEventListener("click", (e) => {
-    if (e.target === $("storeModal")) closeStoreModal();
-  });
+  $("storeModal").addEventListener("click", (e) => { if (e.target === $("storeModal")) closeStoreModal(); });
 
-  // Warehouse modal buttons
-  $("btnCloseWarehouse").addEventListener("click", closeWarehouseModal);
+  $("btnCloseWarehouse").addEventListener("click",  closeWarehouseModal);
   $("btnCancelWarehouse").addEventListener("click", closeWarehouseModal);
   $("btnSubmitWarehouse").addEventListener("click", submitWarehouse);
-  $("warehouseModal").addEventListener("click", (e) => {
-    if (e.target === $("warehouseModal")) closeWarehouseModal();
-  });
+  $("warehouseModal").addEventListener("click", (e) => { if (e.target === $("warehouseModal")) closeWarehouseModal(); });
 
-  // Auth modal buttons
-  $("btnOpenAuth").addEventListener("click", openAuthModal);
+  $("btnOpenAuth").addEventListener("click",  openAuthModal);
   $("btnCloseAuth").addEventListener("click", closeAuthModal);
   $("btnAuthCancel").addEventListener("click", closeAuthModal);
   $("btnAuthSignIn").addEventListener("click", doSignIn);
-  $("btnSignOut").addEventListener("click", doSignOut);
-  $("authModal").addEventListener("click", (e) => {
-    if (e.target === $("authModal")) closeAuthModal();
-  });
+  $("btnSignOut").addEventListener("click",    doSignOut);
+  $("authModal").addEventListener("click", (e) => { if (e.target === $("authModal")) closeAuthModal(); });
+  $("authPassInput").addEventListener("keydown", (e) => { if (e.key === "Enter") doSignIn(); });
 
-  $("authPassInput").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") doSignIn();
-  });
-
-  // Autocomplete bindings
-  $("fQty").addEventListener("input", () => updateTxSerialFields($("fQty").value));
-  $("fItem").addEventListener("input", acInput);
-  $("fItem").addEventListener("keydown", acKey);
-  $("fAssigned").addEventListener("input", acAssignedInput);
-  $("fAssigned").addEventListener("keydown", acAssignedKey);
-  $("sfType").addEventListener("input", acTypeInput);
-  $("sfType").addEventListener("keydown", acTypeKey);
+  $("fQty").addEventListener("input",       () => updateTxSerialFields($("fQty").value));
+  $("fItem").addEventListener("input",      acInput);
+  $("fItem").addEventListener("keydown",    acKey);
+  $("fAssigned").addEventListener("input",  acAssignedInput);
+  $("fAssigned").addEventListener("keydown",acAssignedKey);
+  $("sfType").addEventListener("input",     acTypeInput);
+  $("sfType").addEventListener("keydown",   acTypeKey);
 }
 
 // ── INACTIVITY AUTO-LOGOUT ────────────────────────────────
-const IDLE_MS = 30 * 60 * 1000; // 30 minutes
+const IDLE_MS = 30 * 60 * 1000;
 let _idleTimer = null;
 
 function _resetIdleTimer() {
   clearTimeout(_idleTimer);
   _idleTimer = setTimeout(async () => {
     showToast("Phiên làm việc hết hạn do không hoạt động.", "info");
-    await signOut(auth);
+    await supabase.auth.signOut();
   }, IDLE_MS);
 }
 
 function startInactivityTimer() {
-  ["mousemove", "keydown", "click", "touchstart", "scroll"].forEach((ev) =>
+  ["mousemove","keydown","click","touchstart","scroll"].forEach((ev) =>
     document.addEventListener(ev, _resetIdleTimer, { passive: true })
   );
   _resetIdleTimer();
@@ -2053,7 +1700,7 @@ function startInactivityTimer() {
 function stopInactivityTimer() {
   clearTimeout(_idleTimer);
   _idleTimer = null;
-  ["mousemove", "keydown", "click", "touchstart", "scroll"].forEach((ev) =>
+  ["mousemove","keydown","click","touchstart","scroll"].forEach((ev) =>
     document.removeEventListener(ev, _resetIdleTimer)
   );
 }
@@ -2061,30 +1708,27 @@ function stopInactivityTimer() {
 // ── INIT ──────────────────────────────────────────────────
 wireEvents();
 
-let _prevAuthUser = undefined; // undefined = first call not yet received
-onAuthStateChanged(auth, async (user) => {
-  const wasLoggedIn = _prevAuthUser !== undefined && _prevAuthUser !== null;
-  _prevAuthUser = user || null;
-  currentUser = user || null;
+// Expose showPage globally (needed by inline onclick in HTML)
+window.showPage = showPage;
+
+supabase.auth.onAuthStateChange(async (event, session) => {
+  const user = session?.user || null;
+  currentUser = user;
   if (user) {
     await loadUserRole(user);
     startInactivityTimer();
     refreshAuthUI();
-    // Reload data with correct permissions, redirect viewer
     await loadAll();
     if (isViewer()) showPage("transactions");
   } else {
     currentRole = null;
     stopInactivityTimer();
     refreshAuthUI();
-    if (wasLoggedIn) {
-      if (typeof window.showIntroScreen === "function") {
-        window.showIntroScreen();
-      }
+    if (event === "SIGNED_OUT" && typeof window.showIntroScreen === "function") {
+      window.showIntroScreen();
     }
   }
 });
 
-// Initial data load
+// Initial data load (before auth resolves)
 loadAll();
-
