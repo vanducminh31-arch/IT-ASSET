@@ -3,6 +3,7 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 
 // ── SUPABASE INIT ──────────────────────────────────────────
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON);
+window._supabaseClient = supabase;
 
 // ── STATE ──────────────────────────────────────────────────
 let currentUser = null;
@@ -1724,11 +1725,12 @@ supabase.auth.onAuthStateChange(async (event, session) => {
     currentRole = null;
     stopInactivityTimer();
     refreshAuthUI();
-    if (event === "SIGNED_OUT" && typeof window.showIntroScreen === "function") {
-      window.showIntroScreen();
-    }
+    $("main").innerHTML = `
+      <div class="empty" style="padding:80px 20px;text-align:center">
+        <div class="e-icon" style="font-size:48px">🔐</div>
+        <div style="font-size:18px;font-weight:600;margin-top:16px;color:var(--text)">Vui lòng đăng nhập</div>
+        <div style="margin-top:8px;font-size:13px;color:var(--muted)">Bạn cần đăng nhập để sử dụng hệ thống.</div>
+        <button onclick="openAuthModal()" style="margin-top:20px;padding:10px 28px;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600">Đăng nhập</button>
+      </div>`;
   }
 });
-
-// Initial data load (before auth resolves)
-loadAll();

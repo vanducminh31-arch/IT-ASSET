@@ -1858,37 +1858,35 @@
     if(sessionStorage.getItem('introDone')){ document.getElementById('introOverlay').classList.add('hidden'); return; }
 
     // ── Auth bridge ──
-    window.ioDoSignIn=function(){
+    window.ioDoSignIn=async function(){
       const email=document.getElementById('ioAuthEmail').value.trim();
       const pass=document.getElementById('ioAuthPass').value;
       const msg=document.getElementById('ioAuthMsg');
       const btn=document.getElementById('ioAuthBtn');
       const status=document.getElementById('ioCarStatus');
       if(!email||!pass){msg.className='io-lp-msg err';msg.textContent='Vui lòng nhập email và mật khẩu';return;}
-      const realEmail=document.getElementById('authEmailInput');
-      const realPass=document.getElementById('authPassInput');
-      if(!realEmail||!realPass){msg.className='io-lp-msg err';msg.textContent='App chưa tải xong, thử lại sau';return;}
-      realEmail.value=email; realPass.value=pass;
       btn.disabled=true; btn.textContent='Đang đăng nhập...';
       msg.className='io-lp-msg info'; msg.textContent='Đang xác thực...';
       if(status){status.textContent='AUTHENTICATING...';status.style.color='#ffe600';status.style.borderColor='rgba(255,230,0,.45)';status.style.animation='none';status.style.opacity='1';}
-      document.getElementById('btnAuthSignIn').click();
-      let attempts=0;
-      const watchAuth=setInterval(function(){
-        attempts++;
-        const soBtn=document.getElementById('btnSignOut');
-        if(soBtn&&soBtn.style.display!=='none'&&soBtn.style.display!==''){
-          clearInterval(watchAuth);
-          showWelcome(document.getElementById('authEmail').textContent);
-        }
-        if(attempts>50){
-          clearInterval(watchAuth);
+      try{
+        // Wait for supabase client to be ready (exposed from app.js)
+        let waited=0;
+        while(typeof window._supabaseClient==='undefined'&&waited<4000){await new Promise(r=>setTimeout(r,100));waited+=100;}
+        const client=window._supabaseClient;
+        if(!client){msg.className='io-lp-msg err';msg.textContent='App chưa tải xong, thử lại sau';btn.disabled=false;btn.textContent='Đăng nhập →';return;}
+        const {data,error}=await client.auth.signInWithPassword({email,password:pass});
+        if(error||!data?.user){
           btn.disabled=false; btn.textContent='Đăng nhập →';
           msg.className='io-lp-msg err'; msg.textContent='Email hoặc mật khẩu không đúng';
           if(status){status.textContent='ACCESS DENIED';status.style.color='#ff0055';status.style.borderColor='rgba(255,0,85,.45)';}
           setTimeout(()=>{if(status){status.textContent='AWAITING AUTHENTICATION...';status.style.color='';status.style.borderColor='';status.style.animation='';}},2200);
+        } else {
+          showWelcome(data.user.email);
         }
-      },100);
+      }catch(e){
+        btn.disabled=false; btn.textContent='Đăng nhập →';
+        msg.className='io-lp-msg err'; msg.textContent='Lỗi kết nối, thử lại sau';
+      }
     };
 
     window.ioDoSignOut=function(){
@@ -2075,6 +2073,6 @@
   })();
   </script>
 
-  <script type="module" src="./js/app.js"></script>
+  <script type="module" src="./app.js"></script>
 </body>
 </html>
